@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.auth/
+.fixtures/
+reports/
+.env*
+!.env.qa.example
+*.swp
+.DS_Store

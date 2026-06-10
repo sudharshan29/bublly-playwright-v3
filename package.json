@@ -1,0 +1,30 @@
+{
+  "name": "bublly-playwright-v3",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test":            "npx playwright test",
+    "test:smoke":      "npx playwright test --grep @smoke",
+    "test:regression": "npx playwright test --grep @regression",
+    "test:inbox":      "npx playwright test src/modules/inbox",
+    "test:auth":       "npx playwright test src/modules/auth",
+    "seed":            "npx ts-node scripts/seed-fixtures.ts",
+    "cleanup":         "npx ts-node scripts/cleanup-stale.ts",
+    "report":          "npx allure serve reports/allure-results",
+    "lint":            "npx eslint 'src/**/*.ts' 'scripts/**/*.ts'",
+    "typecheck":       "npx tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test":              "^1.45.0",
+    "@types/node":                   "^20.14.0",
+    "@types/uuid":                   "^9.0.8",
+    "@typescript-eslint/eslint-plugin": "^7.13.0",
+    "@typescript-eslint/parser":     "^7.13.0",
+    "allure-playwright":             "^2.15.0",
+    "dotenv":                        "^16.4.5",
+    "eslint":                        "^8.57.0",
+    "ts-node":                       "^10.9.2",
+    "typescript":                    "^5.4.5",
+    "uuid":                          "^9.0.1"
+  }
+}
