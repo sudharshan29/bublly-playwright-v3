@@ -1,10 +1,11 @@
 import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.qa' });
 
-import * as fs   from 'fs';
-import { env }   from '../config/environment';
+import * as fs from 'fs';
+import { env } from '../config/environment';
 
-const FIXTURES_FILE  = '.fixtures/fixture-data.json';
+const FIXTURES_FILE      = '.fixtures/fixture-data.json';
+const NUMERIC_PROJECT_ID = 672;
 
 const STATUS_MAP: Record<string, number> = {
   open:     1,
@@ -12,13 +13,6 @@ const STATUS_MAP: Record<string, number> = {
   archived: 4,
   snoozed:  5,
 };
-
-const FIXTURE_CONTACT = {
-  email: 'qa.fixture.contact@mailinator.com',
-  name:  'QA Fixture',
-};
-
-const NUMERIC_PROJECT_ID = 672;
 
 let bearerToken: string | null = null;
 
@@ -53,7 +47,7 @@ async function apiPost(path: string, body: object): Promise<unknown> {
     headers: { Authorization: token, 'Content-Type': 'application/json' },
     body:    JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`POST ${path} → ${res.status}`);
+  if (!res.ok) throw new Error(`POST ${path} → ${res.status}: ${await res.text()}`);
   return res.json();
 }
 
@@ -64,36 +58,11 @@ async function setConversationStatus(convId: string, status: keyof typeof STATUS
   });
 }
 
-async function getOrCreateFixtureContact(): Promise<number> {
-  const searchRes = await apiPost('/customer/get-customer', {
-    search:   FIXTURE_CONTACT.email,
-    viewType: '',
-    limit:    1,
-    offset:   0,
-  }) as { data?: { data?: Array<{ id: number }> } };
-
-  const existing = searchRes?.data?.data?.[0];
-  if (existing?.id) {
-    console.log(`  Fixture contact already exists: id=${existing.id}`);
-    return existing.id;
-  }
-
-  const createRes = await apiPost('/customer/create-customer', {
-    email:      FIXTURE_CONTACT.email,
-    full_name:  FIXTURE_CONTACT.name,
-    project_id: NUMERIC_PROJECT_ID,
-  }) as { data?: { id: number } };
-
-  const newId = createRes?.data?.id;
-  if (!newId) throw new Error('create-customer returned no id');
-  console.log(`  Fixture contact created: id=${newId}`);
-  return newId;
-}
-
-// Bublly's /customer/start-conversation creates widget/email messages and does NOT produce
-// agent-inbox tickets. The ticket pool is pre-populated by real customer conversations.
-// This function borrows an existing open ticket from the pool (same pattern as v2 helper).
+// Bublly inbox tickets come from live customer chat sessions — they cannot be created via agent API.
+// Instead we borrow existing open tickets from the pool (QA env has 800+ tickets).
+// Smoke tests are read-only and do not mutate these tickets.
 async function borrowOpenTicket(excludeIds: Set<string>): Promise<string> {
+  // ticket_list response shape: { data: { tickets: [...], status: ... } }
   const listRes = await apiPost('/chat/ticket_list', {
     limit:    50,
     offset:   0,
@@ -101,12 +70,11 @@ async function borrowOpenTicket(excludeIds: Set<string>): Promise<string> {
     type:     Number(env.workspace.inboxId),
     name:     'Open',
     listType: 'All',
-    groupId:  0,
   }) as { data?: { tickets?: Array<{ id: number; is_deleted?: boolean }> } };
 
   const tickets = listRes?.data?.tickets ?? [];
   const available = tickets.find(t => !t.is_deleted && !excludeIds.has(String(t.id)));
-  if (!available?.id) throw new Error('No available open ticket in pool to borrow');
+  if (!available?.id) throw new Error('No available open ticket in pool');
   return String(available.id);
 }
 
@@ -114,34 +82,22 @@ async function main() {
   console.log('[seed-fixtures] Starting...');
   fs.mkdirSync('.fixtures', { recursive: true });
 
-  console.log('\n[seed-fixtures] Checking fixture contact...');
-  const customerId = await withApiSafety('getOrCreateContact', () =>
-    getOrCreateFixtureContact()
-  ) as number | null;
-
-  if (!customerId) {
-    console.error('[seed-fixtures] Could not get/create fixture contact — aborting');
-    process.exit(1);
-  }
-
   let fixtures: Record<string, unknown> = {};
   if (fs.existsSync(FIXTURES_FILE)) {
     fixtures = JSON.parse(fs.readFileSync(FIXTURES_FILE, 'utf-8'));
-    console.log('\n[seed-fixtures] Existing fixture-data.json found. Checking conversations...');
+    console.log('[seed-fixtures] Existing fixture-data.json found — checking...');
   }
 
   const conversations = (fixtures['conversations'] ?? {}) as Record<string, string>;
+  const usedIds       = new Set<string>(Object.values(conversations));
 
   const needed: Array<{ key: string; status?: keyof typeof STATUS_MAP }> = [
-    { key: 'open'                          },
-    { key: 'snoozed',  status: 'snoozed'  },
-    { key: 'closed',   status: 'closed'   },
-    { key: 'archived', status: 'archived' },
-    { key: 'assigned'                      },
+    { key: 'open'                         },
+    { key: 'snoozed',  status: 'snoozed' },
+    { key: 'closed',   status: 'closed'  },
+    { key: 'archived', status: 'archived'},
+    { key: 'assigned'                     },
   ];
-
-  // Track borrowed IDs to avoid reusing the same ticket
-  const borrowedIds = new Set<string>(Object.values(conversations));
 
   for (const item of needed) {
     if (conversations[item.key]) {
@@ -149,38 +105,29 @@ async function main() {
       continue;
     }
 
-    console.log(`\n[seed-fixtures] Borrowing ticket for ${item.key}...`);
-
-    // If the target status is not open, first borrow an open ticket then move it
-    // For open/assigned we leave it open; for others we change the status
-    const convId = await withApiSafety(`borrow:${item.key}`, () =>
-      borrowOpenTicket(borrowedIds)
-    );
-
+    console.log(`\n[seed-fixtures] Borrowing ticket for [${item.key}]...`);
+    const convId = await withApiSafety(`borrow:${item.key}`, () => borrowOpenTicket(usedIds));
     if (!convId) continue;
-    borrowedIds.add(convId);
+    usedIds.add(convId);
 
     if (item.status) {
       await withApiSafety(`setStatus:${item.key}`, () =>
         setConversationStatus(convId, item.status!)
       );
-      console.log(`  Status set to ${item.status} (${STATUS_MAP[item.status]})`);
+      console.log(`  Status set → ${item.status} (code ${STATUS_MAP[item.status]})`);
     }
 
     conversations[item.key] = convId;
+    console.log(`  [${item.key}] → ticket ${convId}`);
   }
 
-  const fixtureData = {
-    contact:       FIXTURE_CONTACT,
-    conversations,
-  };
-
+  const fixtureData = { conversations };
   fs.writeFileSync(FIXTURES_FILE, JSON.stringify(fixtureData, null, 2));
   console.log(`\n[seed-fixtures] Done. Written to ${FIXTURES_FILE}`);
   console.log(JSON.stringify(fixtureData, null, 2));
 }
 
-main().catch((e) => {
-  console.error('[seed-fixtures] Fatal error:', e);
+main().catch(e => {
+  console.error('[seed-fixtures] Fatal:', e);
   process.exit(1);
 });
