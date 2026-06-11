@@ -21,4 +21,6 @@ export const env = {
   },
   isFreePlan:       process.env.IS_FREE_PLAN       === 'true',
   hasWidgetChannel: process.env.HAS_WIDGET_CHANNEL === 'true',
+  // Customer-facing Help Center widget — used by seed to create real inbox tickets
+  helpCenterUrl:    process.env.HELP_CENTER_URL ?? 'https://comp-823e2b.qa-help.bublly.com',
 };
