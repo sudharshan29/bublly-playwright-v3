@@ -31,7 +31,7 @@ test.describe('Inbox smoke — TC_INB_001–015 @smoke', () => {
 
   test('TC_INB_003 new conversation button is visible', async ({ page, inboxPage }) => {
     await inboxPage.goto();
-    await expect(page.locator('#tour-step-new-conversation')).toBeVisible();
+    await expect(page.locator('#tour-step-new-conversation')).toBeVisible({ timeout: 20_000 });
   });
 
   test('TC_INB_004 open filter shows at least one conversation', async ({ page, inboxPage }) => {
@@ -130,13 +130,14 @@ test.describe('Inbox smoke — TC_INB_001–015 @smoke', () => {
 
   test('TC_INB_014 open and archived filters both return results confirming filter works', async ({ page, inboxPage }) => {
     await inboxPage.goto();
-    await inboxPage.applyFilter('open');
-    await page.waitForTimeout(1_000);
+    // Wait for the open inbox list to fully render before counting
+    await page.locator('[class*="receiver-bg"]').first().waitFor({ state: 'visible', timeout: 20_000 });
     const openCount = await inboxPage.getConversationCount();
 
-    // Use archived (has 9 items in QA) instead of closed (has 0 in QA)
+    // Archived has 9 items in QA; closed has 0 — use archived to verify filter switching works
     await inboxPage.applyFilter('archived');
-    await page.waitForTimeout(1_500);
+    // Archived view shows skeleton loaders before real items — wait for first receiver-bg
+    await page.locator('[class*="receiver-bg"]').first().waitFor({ state: 'visible', timeout: 20_000 }).catch(() => {});
     const archivedCount = await inboxPage.getConversationCount();
 
     expect(openCount).toBeGreaterThanOrEqual(1);

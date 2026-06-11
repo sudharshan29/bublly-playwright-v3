@@ -22,16 +22,20 @@ export class InboxPage {
   async goto(): Promise<void> {
     const url = `${env.baseUrl}/project/${env.workspace.projectId}/inbox/${env.workspace.inboxId}/all/open`;
     await this.page.goto(url, { waitUntil: 'domcontentloaded' });
-    await this.loc.filterAll.waitFor({ state: 'visible', timeout: TIMEOUTS.slow });
-    await this.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+    // Wait for page structure (combobox is always present)
+    await this.page.waitForSelector('[role="combobox"]', { timeout: TIMEOUTS.navigation });
+    // Wait for inbox data — either conversations or the empty state message
+    await Promise.race([
+      this.loc.conversationItems.first().waitFor({ state: 'visible', timeout: 15_000 }),
+      this.page.getByText('Inbox zero').waitFor({ state: 'visible', timeout: 15_000 }),
+    ]).catch(() => {});
   }
 
   async gotoConversation(convId: string): Promise<void> {
     const url = `${env.baseUrl}/project/${env.workspace.projectId}/inbox/${env.workspace.inboxId}/all/open/ticket/${convId}`;
     await this.page.goto(url, { waitUntil: 'domcontentloaded' });
-    // Wait for the inbox list panel (filterAll) to confirm app has loaded, then wait for detail panel
-    await this.loc.filterAll.waitFor({ state: 'visible', timeout: TIMEOUTS.slow });
-    await this.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+    // Wait for the detail panel to confirm the conversation loaded
+    await this.loc.detailPanel.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
   }
 
   async applyFilter(filter: InboxFilter): Promise<void> {
@@ -57,9 +61,8 @@ export class InboxPage {
     const statusSegment = statusUrlMap[filter] ?? 'open';
     const url = `${env.baseUrl}/project/${env.workspace.projectId}/inbox/${env.workspace.inboxId}/all/${statusSegment}`;
     await this.page.goto(url, { waitUntil: 'domcontentloaded' });
-    await this.loc.filterAll.waitFor({ state: 'visible', timeout: TIMEOUTS.slow });
-    await this.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
-    await this.page.waitForTimeout(300);
+    // Wait briefly for the inbox to render (no guaranteed element for all statuses)
+    await this.page.waitForTimeout(1_500);
   }
 
   async search(query: string): Promise<void> {
