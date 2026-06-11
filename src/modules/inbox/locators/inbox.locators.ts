@@ -19,11 +19,16 @@ export function inboxLocators(page: Page) {
     filterAll:           page.getByText('All', { exact: true }).first(),
     filterMine:          page.getByText('My Inbox', { exact: true }).first(),
 
-    detailPanel:         page.locator('[class*="headerPadding"]'),
+    // Use the more specific headerPadding div that contains the ticket detail header (not the inbox list header)
+    // Two elements match [class*="headerPadding"]; the ticket detail one contains action buttons/icons
+    detailPanel:         page.locator('[class*="headerPadding"]').nth(1),
     contactName:         page.locator('span[class*="truncate"][class*="flex-grow"]').first(),
     messageThread:       page.locator('[class*="flex-col-reverse"][class*="scroll-box"]'),
 
-    searchInput:         page.getByRole('searchbox'),
+    // "Search here" in the top nav bar triggers a center overlay; after clicking, the real input appears
+    searchTrigger:       page.getByText('Search here', { exact: false }).first(),
+    // Confirmed from live DOM: the search overlay input has placeholder "Search here..."
+    searchInput:         page.getByPlaceholder('Search here...'),
     snoozeBtn:           page.getByRole('button', { name: /snooze/i }),
     snoozeTomorrow:      page.getByRole('menuitem', { name: 'Tomorrow' }),
 

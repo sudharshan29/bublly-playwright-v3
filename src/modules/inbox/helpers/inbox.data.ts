@@ -60,7 +60,9 @@ export class InboxDataHelper {
   // Simulates a customer sending a message through the Help Center widget.
   // Opens a fresh browser context (no agent auth) to the help center URL.
   private async sendWidgetMessage(browser: Browser, label: string, message: string): Promise<void> {
-    const page = await browser.newPage();
+    // QA Help Center uses a self-signed cert ("Not Secure") — must ignore TLS errors
+    const ctx  = await browser.newContext({ ignoreHTTPSErrors: true });
+    const page = await ctx.newPage();
     await page.goto(env.helpCenterUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
     // Widget may auto-open or require clicking "Start Chat"

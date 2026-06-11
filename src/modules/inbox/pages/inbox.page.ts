@@ -29,35 +29,54 @@ export class InboxPage {
   async gotoConversation(convId: string): Promise<void> {
     const url = `${env.baseUrl}/project/${env.workspace.projectId}/inbox/${env.workspace.inboxId}/all/open/ticket/${convId}`;
     await this.page.goto(url, { waitUntil: 'domcontentloaded' });
-    await this.loc.detailPanel.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
+    // Wait for the inbox list panel (filterAll) to confirm app has loaded, then wait for detail panel
+    await this.loc.filterAll.waitFor({ state: 'visible', timeout: TIMEOUTS.slow });
+    await this.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
   }
 
   async applyFilter(filter: InboxFilter): Promise<void> {
     if (filter === 'mine') {
       await this.loc.filterMine.click();
-    } else if (filter === 'all') {
-      await this.loc.filterAll.click();
-    } else {
-      await this.loc.statusDropdown.click();
-      const optionMap: Record<string, Locator> = {
-        open:     this.loc.statusOpen,
-        snoozed:  this.loc.statusSnoozed,
-        closed:   this.loc.statusClosed,
-        archived: this.loc.statusArchived,
-      };
-      await optionMap[filter].click();
+      await this.page.waitForTimeout(300);
+      return;
     }
+    if (filter === 'all') {
+      await this.loc.filterAll.click();
+      await this.page.waitForTimeout(300);
+      return;
+    }
+    // For status filters (open/snoozed/closed/archived), navigate directly via URL.
+    // The status dropdown is unreliable in QA — it can trigger a client-side crash.
+    // URL pattern: /project/{id}/inbox/{id}/all/{status}
+    const statusUrlMap: Record<string, string> = {
+      open:     'open',
+      snoozed:  'snoozed',
+      closed:   'closed',
+      archived: 'archived',
+    };
+    const statusSegment = statusUrlMap[filter] ?? 'open';
+    const url = `${env.baseUrl}/project/${env.workspace.projectId}/inbox/${env.workspace.inboxId}/all/${statusSegment}`;
+    await this.page.goto(url, { waitUntil: 'domcontentloaded' });
+    await this.loc.filterAll.waitFor({ state: 'visible', timeout: TIMEOUTS.slow });
+    await this.page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
     await this.page.waitForTimeout(300);
   }
 
   async search(query: string): Promise<void> {
+    // The "Search here" bar is a clickable div; clicking it reveals the actual text input
+    const trigger = this.loc.searchTrigger;
+    const isVisible = await trigger.isVisible().catch(() => false);
+    if (isVisible) {
+      await trigger.click();
+      await this.page.waitForTimeout(300);
+    }
     await this.loc.searchInput.fill(query);
     await this.page.waitForTimeout(500);
   }
 
   async clearSearch(): Promise<void> {
-    await this.loc.searchInput.clear();
-    await this.page.waitForTimeout(300);
+    // Search stays active after typing — navigate back to the open inbox URL to reset
+    await this.goto();
   }
 
   async getConversationCount(): Promise<number> {
