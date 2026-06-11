@@ -1,0 +1,85 @@
+pipeline {
+  agent {
+    docker {
+      image 'mcr.microsoft.com/playwright:v1.45.0-jammy'
+      args  '-v /tmp/.playwright:/root/.cache/ms-playwright'
+    }
+  }
+
+  environment {
+    BASE_URL           = 'https://qa-desk.bublly.com'
+    API_BASE_URL       = 'https://api-qa-desk.bublly.com'
+    IS_FREE_PLAN       = 'true'
+    HAS_WIDGET_CHANNEL = 'false'
+    WORKERS            = '2'
+    QA_PROJECT_ID      = '2241b02a-5faa-43e8-869a-98db95ef66cc'
+    QA_INBOX_ID        = '1894'
+  }
+
+  stages {
+    stage('Install') {
+      steps {
+        sh 'npm ci'
+        sh 'npx playwright install --with-deps chromium'
+      }
+    }
+
+    stage('Configure credentials') {
+      steps {
+        withCredentials([
+          usernamePassword(
+            credentialsId: 'bublly-qa-free-user-pass',
+            usernameVariable: 'FREE_USER_EMAIL',
+            passwordVariable: 'FREE_USER_PASS'
+          )
+        ]) {
+          sh '''
+            cat > .env.qa <<EOF
+BASE_URL=${BASE_URL}
+API_BASE_URL=${API_BASE_URL}
+FREE_USER_EMAIL=${FREE_USER_EMAIL}
+FREE_USER_PASS=${FREE_USER_PASS}
+IS_FREE_PLAN=${IS_FREE_PLAN}
+HAS_WIDGET_CHANNEL=${HAS_WIDGET_CHANNEL}
+WORKERS=${WORKERS}
+QA_PROJECT_ID=${QA_PROJECT_ID}
+QA_INBOX_ID=${QA_INBOX_ID}
+EOF
+          '''
+        }
+      }
+    }
+
+    stage('Cleanup stale data') {
+      steps {
+        sh 'npx ts-node scripts/cleanup-stale.ts || true'
+      }
+    }
+
+    stage('Seed fixtures') {
+      steps {
+        sh 'npm run seed'
+      }
+    }
+
+    stage('Test — smoke') {
+      steps {
+        sh 'npx playwright test --grep @smoke'
+      }
+    }
+
+    stage('Report') {
+      steps {
+        sh 'npx allure generate reports/allure-results --clean -o reports/allure-report || true'
+      }
+    }
+  }
+
+  post {
+    always {
+      archiveArtifacts artifacts: 'reports/allure-report/**', allowEmptyArchive: true
+      archiveArtifacts artifacts: 'playwright-report/**',    allowEmptyArchive: true
+      archiveArtifacts artifacts: 'test-results/**',         allowEmptyArchive: true
+    }
+  }
+}

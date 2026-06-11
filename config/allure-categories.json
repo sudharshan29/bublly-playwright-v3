@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Auth / session failures",
+    "messageRegex": ".*login.*|.*401.*|.*redirect.*login.*"
+  },
+  {
+    "name": "AI response timeout",
+    "messageRegex": ".*aiResponse.*timeout.*"
+  },
+  {
+    "name": "Locator not found",
+    "messageRegex": ".*locator.*not.*visible.*|.*strict mode.*"
+  },
+  {
+    "name": "Data / stale test data",
+    "messageRegex": ".*test_.*not found.*|.*fixture.*missing.*"
+  },
+  {
+    "name": "Plan-gated (skipped on free plan)",
+    "matchedStatuses": ["skipped"]
+  }
+]
