@@ -21,10 +21,11 @@ export class InboxPage {
 
   async goto(): Promise<void> {
     const url = `${env.baseUrl}/project/${env.workspace.projectId}/inbox/${env.workspace.inboxId}/all/open`;
-    await this.page.goto(url, { waitUntil: 'domcontentloaded' });
-    // Wait for page structure (combobox is always present)
+    // QA free-plan server is slow under concurrent load — use 60s timeout to avoid flakiness
+    await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    // Wait for page structure (combobox is always present, even in empty-inbox state)
     await this.page.waitForSelector('[role="combobox"]', { timeout: TIMEOUTS.navigation });
-    // Wait for inbox data — either conversations or the empty state message
+    // Wait for inbox data — either conversation items or the empty state message
     await Promise.race([
       this.loc.conversationItems.first().waitFor({ state: 'visible', timeout: 15_000 }),
       this.page.getByText('Inbox zero').waitFor({ state: 'visible', timeout: 15_000 }),

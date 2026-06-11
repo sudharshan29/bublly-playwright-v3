@@ -3,6 +3,7 @@ import { AuthPage }     from '../pages/auth.page';
 import { env }          from '../../../../config/environment';
 
 test.describe('Login page — unauthenticated', () => {
+  test.setTimeout(60_000);
 
   test('TC_AUTH_002 login page renders email field and Sign In button @smoke', async ({ page }) => {
     const auth = new AuthPage(page);
