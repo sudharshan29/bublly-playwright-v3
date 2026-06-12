@@ -10,11 +10,13 @@ test.describe('Authenticated session behavior', () => {
   });
 
   test('TC_AUTH_008 session persists after page reload @smoke', async ({ page }) => {
-    await page.goto(env.baseUrl + '/dashboard');
+    await page.goto(env.baseUrl + '/dashboard', { waitUntil: 'domcontentloaded' });
     const urlBefore = page.url();
 
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    // networkidle is unreliable on helpdesk apps with WebSocket connections —
+    // wait for a stable dashboard element instead
+    await page.getByRole('heading', { level: 1 }).waitFor({ state: 'visible', timeout: 15_000 });
 
     expect(page.url()).not.toContain('login');
     expect(page.url()).toBe(urlBefore);

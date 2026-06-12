@@ -64,7 +64,9 @@ async function setConversationStatus(convId: string, status: keyof typeof STATUS
 // the user: customer opens widget → picks option → sends message → ticket appears in agent inbox.
 async function createTicketViaWidget(label: string, message: string): Promise<string> {
   const browser = await chromium.launch();
-  const page    = await browser.newPage();
+  // QA Help Center uses a self-signed cert ("Not Secure" in browser) — must ignore TLS errors
+  const ctx  = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await ctx.newPage();
 
   try {
     console.log(`  Opening Help Center widget at ${env.helpCenterUrl}...`);

@@ -6,6 +6,7 @@ import { env }          from '../../../../config/environment';
 test.describe.configure({ mode: 'serial' });
 
 test.describe('Signup form', () => {
+  test.setTimeout(90_000);
 
   test('TC_AUTH_009 signup page loads with required fields visible @smoke', async ({ page }) => {
     const auth = new AuthPage(page);

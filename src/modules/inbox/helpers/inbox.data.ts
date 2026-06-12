@@ -19,6 +19,16 @@ export class InboxDataHelper {
     const subject = `test_${label}_${uuid().slice(0, 8)}`;
     const message = subject;
 
+    // Snapshot existing open ticket IDs BEFORE sending, so we can diff after.
+    // This is more reliable than matching by message_text (which the AI may update).
+    const token      = await this.getBearerToken();
+    const beforeRes  = await this.page.request.post(`${env.apiBaseUrl}/chat/ticket_list`, {
+      headers: { Authorization: token, 'Content-Type': 'application/json' },
+      data: { limit: 100, offset: 0, status: 6423, type: Number(env.workspace.inboxId), name: 'Open', listType: 'All' },
+    });
+    const beforeBody = await beforeRes.json() as { data?: { tickets?: Array<{ id: number }> } };
+    const existingIds = new Set((beforeBody?.data?.tickets ?? []).map(t => t.id));
+
     const browser = await chromium.launch();
     try {
       await this.sendWidgetMessage(browser, label, message);
@@ -26,27 +36,26 @@ export class InboxDataHelper {
       await browser.close();
     }
 
-    // Brief wait for ticket to appear in inbox
-    await this.page.waitForTimeout(2_000);
+    // Poll for the new ticket — QA server ingestion can take 5-45s under concurrent widget load.
+    // Poll every 2s for up to 120s before giving up.
+    let newTicket: { id: number; is_deleted?: boolean } | undefined;
+    const deadline = Date.now() + 120_000;
+    while (Date.now() < deadline) {
+      await this.page.waitForTimeout(2_000);
+      const afterRes  = await this.page.request.post(`${env.apiBaseUrl}/chat/ticket_list`, {
+        headers: { Authorization: token, 'Content-Type': 'application/json' },
+        data: { limit: 100, offset: 0, status: 6423, type: Number(env.workspace.inboxId), name: 'Open', listType: 'All' },
+      });
+      const afterBody = await afterRes.json() as {
+        data?: { tickets?: Array<{ id: number; is_deleted?: boolean }> };
+      };
+      const allTickets = afterBody?.data?.tickets ?? [];
+      newTicket = allTickets.find(t => !t.is_deleted && !existingIds.has(t.id));
+      if (newTicket?.id) break;
+    }
 
-    const token   = await this.getBearerToken();
-    const listRes = await this.page.request.post(`${env.apiBaseUrl}/chat/ticket_list`, {
-      headers: { Authorization: token, 'Content-Type': 'application/json' },
-      data: {
-        limit: 10, offset: 0, status: 6423,
-        type: Number(env.workspace.inboxId), name: 'Open', listType: 'All',
-      },
-    });
-    const listBody = await listRes.json() as {
-      data?: { tickets?: Array<{ id: number; message_text?: string; is_deleted?: boolean }> };
-    };
-    const tickets = listBody?.data?.tickets ?? [];
-    const match   = tickets.find(t =>
-      !t.is_deleted && t.message_text && message.startsWith(t.message_text.substring(0, 20))
-    ) ?? tickets.find(t => !t.is_deleted);
-
-    if (!match?.id) throw new Error(`Widget message sent but ticket not found. Run npm run seed first.`);
-    return { id: String(match.id), subject };
+    if (!newTicket?.id) throw new Error(`Widget message sent but new ticket not found in Open inbox after 120s.`);
+    return { id: String(newTicket.id), subject };
   }
 
   async deleteConversation(id: string): Promise<void> {
@@ -58,43 +67,82 @@ export class InboxDataHelper {
   }
 
   // Simulates a customer sending a message through the Help Center widget.
-  // Opens a fresh browser context (no agent auth) to the help center URL.
+  // The widget loads inside a cross-origin iframe (#bublly-widget) — all interactions
+  // must be scoped through page.frameLocator() or they silently miss the target.
   private async sendWidgetMessage(browser: Browser, label: string, message: string): Promise<void> {
-    // QA Help Center uses a self-signed cert ("Not Secure") — must ignore TLS errors
     const ctx  = await browser.newContext({ ignoreHTTPSErrors: true });
     const page = await ctx.newPage();
-    await page.goto(env.helpCenterUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    try {
+      // Use 'load' (not 'domcontentloaded') so all scripts run before we touch the widget.
+      // The Help Center is a static page, so 'load' is reliable here.
+      await page.goto(env.helpCenterUrl, { waitUntil: 'load', timeout: 45_000 });
 
-    // Widget may auto-open or require clicking "Start Chat"
-    const startBtn = page.getByRole('button', { name: /start chat/i });
-    if (await startBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await startBtn.click();
+      // Wait for the widget script to inject the iframe into the DOM.
+      await page.locator('#bublly-widget').waitFor({ state: 'attached', timeout: 20_000 });
+
+      // All widget elements live inside the cross-origin iframe
+      const widget      = page.frameLocator('#bublly-widget');
+      const askQuestion = widget.getByText(/ask a question/i).first();
+      const startBtn    = widget.getByRole('button', { name: /start chat/i });
+
+      // The widget cold-loads in a fresh headless browser and takes 30+ seconds
+      // to boot (JS download + QA API config fetch + React render).
+      // Race the two possible ready states — whichever appears first wins:
+      //  • "Ask a question" — widget auto-opened to category screen
+      //  • "Start Chat"     — widget showing greeting card
+      await Promise.race([
+        askQuestion.waitFor({ state: 'visible', timeout: 60_000 }),
+        startBtn.waitFor({ state: 'visible', timeout: 60_000 }),
+      ]);
+
+      // Handle whichever state landed
+      const onCategories = await askQuestion.isVisible({ timeout: 2_000 }).catch(() => false);
+      if (!onCategories) {
+        // "Start Chat" appeared — click it to navigate to the category screen
+        await startBtn.click();
+        await askQuestion.waitFor({ state: 'visible', timeout: 15_000 });
+      }
+      await askQuestion.click();
+
+      // Confirmed via DOM inspection: the chat input is a contenteditable Slate.js div with
+      // aria-label="Message input". It starts as contenteditable="false" while the bot greeting
+      // loads, then transitions to "true". Poll until editable before filling.
+      const chatInput = widget.getByRole('textbox', { name: 'Message input' });
+      const sendBtn   = widget.getByRole('button', { name: 'Send message' });
+
+      // Helper: wait for the input to become editable (contenteditable="true")
+      const waitEditable = async () => {
+        await chatInput.waitFor({ state: 'visible', timeout: 30_000 });
+        const deadline = Date.now() + 30_000;
+        while (Date.now() < deadline) {
+          if (await chatInput.getAttribute('contenteditable') === 'true') return;
+          await page.waitForTimeout(800);
+        }
+      };
+
+      // Step 1: send the label/question message — bot responds, asks for email
+      await waitEditable();
+      await chatInput.fill(message);
+      await sendBtn.click();
+
+      // Step 2: send a unique visitor email — identifies the visitor to the bot
+      const visitorEmail = `visitor${Date.now()}@mailinator.com`;
+      await waitEditable();
+      await chatInput.fill(visitorEmail);
+      await sendBtn.click();
+
+      // Step 3: send a follow-up message — this confirms routing to human agent
+      // and causes the conversation to appear in the Open inbox (status 6423).
+      // Seed tickets all use "yes" as the confirming message.
+      await waitEditable();
+      await chatInput.fill('yes');
+      await sendBtn.click();
+
+      // Wait for the API to ingest, route, and index the ticket in the Open inbox
+      await page.waitForTimeout(4_000);
+    } finally {
+      await ctx.close();
     }
-
-    // Pick "Ask a question" from the 3-option panel
-    await page.getByText(/ask a question/i).waitFor({ state: 'visible', timeout: 15_000 });
-    await page.getByText(/ask a question/i).click();
-
-    // Fill optional name/email fields if shown
-    const nameField = page.getByPlaceholder(/name/i).or(page.getByLabel(/name/i));
-    if (await nameField.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await nameField.fill(`QA Test ${label}`);
-    }
-    const emailField = page.getByPlaceholder(/email/i).or(page.getByLabel(/email/i));
-    if (await emailField.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await emailField.fill(`qa.test.${label}.${uuid().slice(0, 6)}@mailinator.com`);
-    }
-
-    // Type message and send
-    const messageInput = page.getByRole('textbox').last();
-    await messageInput.waitFor({ state: 'visible', timeout: 10_000 });
-    await messageInput.fill(message);
-
-    const sendBtn = page.getByRole('button', { name: /send/i })
-      .or(page.locator('button[type="submit"]'))
-      .last();
-    await sendBtn.click();
-    await page.waitForTimeout(1_500);
   }
 
   private async getBearerToken(): Promise<string> {

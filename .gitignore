@@ -7,3 +7,7 @@ reports/
 !.env.qa.example
 *.swp
 .DS_Store
+test-results/
+playwright-report/
+.vscode/
+scripts/inspect-widget-tmp.ts

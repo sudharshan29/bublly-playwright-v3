@@ -1,16 +1,7 @@
 import { test, expect } from '../fixtures/inbox.fixture';
 import { env }          from '../../../../config/environment';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const fixtureData = require('../../../../.fixtures/fixture-data.json') as {
-  conversations: {
-    open:     string;
-    snoozed:  string;
-    closed:   string;
-    archived: string;
-    assigned: string;
-  };
-};
+import fixtureData from '../../../../.fixtures/fixture-data.json';
 
 const { conversations } = fixtureData;
 
@@ -39,32 +30,29 @@ test.describe('Inbox smoke — TC_INB_001–015 @smoke', () => {
   test('TC_INB_004 open filter shows at least one conversation', async ({ page, inboxPage }) => {
     await inboxPage.goto();
     await inboxPage.applyFilter('open');
-    await page.waitForTimeout(1_000);
+    // applyFilter re-navigates to the same URL — wait for items to reload after the flash
+    await page.locator('[class*="receiver-bg"]').first().waitFor({ state: 'visible', timeout: 20_000 });
     const count = await inboxPage.getConversationCount();
     expect(count).toBeGreaterThanOrEqual(1);
   });
 
-  test('TC_INB_005 snoozed filter is accessible and shows a conversation count badge', async ({ page, inboxPage }) => {
+  test('TC_INB_005 snoozed filter is accessible and navigates to snoozed view', async ({ page, inboxPage }) => {
     await inboxPage.goto();
     await inboxPage.applyFilter('snoozed');
-    await page.waitForTimeout(1_500);
+    // Assert the URL changed — proves the filter actually applied
+    expect(page.url()).toContain('snoozed');
+    // Count may be 0 in QA data — zero is valid; what matters is no crash
     const count = await inboxPage.getConversationCount();
-    // QA data may have 0 snoozed tickets — the important thing is the filter applied without error
-    if (count === 0) {
-      console.warn('TC_INB_005: snoozed filter applied successfully but QA data has 0 snoozed conversations');
-    }
     expect(count).toBeGreaterThanOrEqual(0);
   });
 
-  test('TC_INB_006 closed filter is accessible and shows a conversation count badge', async ({ page, inboxPage }) => {
+  test('TC_INB_006 closed filter is accessible and navigates to closed view', async ({ page, inboxPage }) => {
     await inboxPage.goto();
     await inboxPage.applyFilter('closed');
-    await page.waitForTimeout(1_500);
+    // Assert the URL changed — proves the filter actually applied
+    expect(page.url()).toContain('closed');
+    // Count may be 0 in QA data — zero is valid; what matters is no crash
     const count = await inboxPage.getConversationCount();
-    // QA data may have 0 closed tickets — the important thing is the filter applied without error
-    if (count === 0) {
-      console.warn('TC_INB_006: closed filter applied successfully but QA data has 0 closed conversations');
-    }
     expect(count).toBeGreaterThanOrEqual(0);
   });
 
@@ -84,27 +72,23 @@ test.describe('Inbox smoke — TC_INB_001–015 @smoke', () => {
     await expect(inboxPage.messageThread).toBeVisible({ timeout: 20_000 });
   });
 
-  test('TC_INB_010 search returns at least one result', async ({ page, inboxPage }) => {
+  test('TC_INB_010 search returns at least one result', async ({ inboxPage }) => {
     await inboxPage.goto();
-    await inboxPage.search('test');
-    await page.waitForTimeout(1_000);
+    // Search "qa_seed" — matches seeded fixture conversations created via the widget
+    await inboxPage.search('qa_seed');
     const count = await inboxPage.getConversationCount();
-    // If count is 0, the QA data may not contain "test" — warn and pass gracefully
-    if (count === 0) {
-      console.warn('TC_INB_010: search for "test" returned 0 results — QA data may not contain matching conversations');
-    }
-    expect(count).toBeGreaterThanOrEqual(0);
+    expect(count).toBeGreaterThanOrEqual(1);
   });
 
-  test('TC_INB_011 no-match search shows empty state (0 conversations)', async ({ page, inboxPage }) => {
+  // KNOWN DEFECT: Bublly QA search returns all conversations (11) for a no-match query
+  // instead of empty state. Expected: 0, Actual: 11.
+  // test.fail() documents the defect — CI stays green.
+  // Remove test.fail() and verify count === 0 once search filtering is fixed in QA.
+  test.fail('TC_INB_011 no-match search shows empty state (0 conversations)', async ({ inboxPage }) => {
     await inboxPage.goto();
     await inboxPage.search('zzz_no_match_xyz_12345');
-    await page.waitForTimeout(1_000);
     const count = await inboxPage.getConversationCount();
-    if (count > 0) {
-      console.warn(`TC_INB_011: expected 0 results for no-match search but got ${count}. Search may be fuzzy or returning all.`);
-    }
-    expect(count).toBeGreaterThanOrEqual(0);
+    expect(count).toBe(0);
   });
 
   test('TC_INB_012 clear search restores conversation list', async ({ page, inboxPage }) => {
@@ -114,8 +98,6 @@ test.describe('Inbox smoke — TC_INB_001–015 @smoke', () => {
     const originalCount = await inboxPage.getConversationCount();
 
     await inboxPage.search('zzz_no_match_xyz_12345');
-    await page.waitForTimeout(1_000);
-
     await inboxPage.clearSearch();
     // Wait for items to reload after navigation back to open view
     await page.locator('[class*="receiver-bg"]').first().waitFor({ state: 'visible', timeout: 20_000 });

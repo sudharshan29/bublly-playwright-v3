@@ -8,7 +8,11 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 1,
-  workers: process.env.WORKERS ? Number(process.env.WORKERS) : 2,
+  // Widget tests (smoke + ingestion) send real browser sessions to the QA Help Center.
+  // Running 2 workers causes concurrent widget load that overwhelms the QA widget queue
+  // (tickets never route within 120s polling window). Serial execution prevents this.
+  workers: process.env.WORKERS ? Number(process.env.WORKERS) : 1,
+  expect: { timeout: 20_000 },
   reporter: [
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
     ['list'],
@@ -21,16 +25,13 @@ export default defineConfig({
     video: 'retain-on-failure',
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
+    // QA subdomains (help center) use self-signed / untrusted SSL certs
+    ignoreHTTPSErrors: true,
   },
   projects: [
     {
-      name: 'setup',
-      testMatch: /global\.setup\.ts/,
-    },
-    {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      dependencies: ['setup'],
     },
   ],
   globalSetup: './src/core/setup/global-setup.ts',
