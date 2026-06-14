@@ -9,5 +9,7 @@ reports/
 .DS_Store
 test-results/
 playwright-report/
+allure-results/
+allure-report/
 .vscode/
 scripts/inspect-widget-tmp.ts

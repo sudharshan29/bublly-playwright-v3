@@ -16,6 +16,7 @@ export default defineConfig({
   reporter: [
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
     ['list'],
+    ['allure-playwright', { outputFolder: 'allure-results', detail: true, suiteTitle: true }],
   ],
   use: {
     baseURL: process.env.BASE_URL ?? 'https://qa-desk.bublly.com',

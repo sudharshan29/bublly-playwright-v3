@@ -189,4 +189,19 @@ test.describe('Inbox conversation detail — TC_INB_022-032 @smoke', () => {
     expect(await value).toContain('TC_INB_047');
   });
 
+  test('TC_INB_068 Description tab shows editable content area with existing ticket description', async ({ page, inboxPage }) => {
+    await inboxPage.gotoConversation(conversations.open);
+
+    await page.getByRole('button', { name: 'Description', exact: true }).click();
+
+    // Description panel renders a contenteditable area (TipTap/ProseMirror or plain textarea)
+    const descArea = page.locator('[contenteditable="true"]').first()
+      .or(page.getByRole('textbox').first());
+    await expect(descArea).toBeVisible({ timeout: 10_000 });
+
+    // The open fixture has a description seeded at creation time — verify it's non-empty
+    const text = await descArea.innerText().catch(() => '');
+    expect(text.trim().length).toBeGreaterThan(0);
+  });
+
 });

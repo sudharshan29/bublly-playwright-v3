@@ -71,4 +71,25 @@ test.describe('Inbox snooze — TC_INB_037-039 @smoke', () => {
     await page.keyboard.press('Escape');
   });
 
+  test('TC_INB_066 Custom snooze opens date and time picker with Confirm button', async ({ page, inboxPage }) => {
+    await inboxPage.gotoConversation(conversations.snoozed, 'snoozed');
+    const snoozeBtn = snoozeBtnLoc(page);
+    await snoozeBtn.waitFor({ state: 'visible', timeout: 10_000 });
+    await snoozeBtn.click();
+
+    // Click the Custom option
+    const customOpt = page.getByRole('dialog').getByText('Custom', { exact: true });
+    await customOpt.waitFor({ state: 'visible', timeout: 10_000 });
+    await customOpt.click();
+
+    // Custom Snooze modal must appear with date and time inputs
+    await expect(page.getByText('Custom Snooze', { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByPlaceholder('DD/MM/YYYY')).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('button', { name: 'Confirm', exact: true })).toBeVisible({ timeout: 5_000 });
+
+    // Close without confirming to preserve fixture state
+    await page.keyboard.press('Escape');
+    await expect(page.getByText('Custom Snooze', { exact: true })).not.toBeVisible({ timeout: 5_000 });
+  });
+
 });
