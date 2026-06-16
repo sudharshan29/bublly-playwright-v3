@@ -9,6 +9,10 @@ export class InboxPage {
   readonly contactName:    Locator;
   readonly messageThread:  Locator;
   readonly detailPanel:    Locator;
+  readonly moreOptionsBtn: Locator;
+  readonly setUnreadBtn:   Locator;
+  readonly copyLinkBtn:    Locator;
+  readonly priorityCombo:  Locator;
   private loc: ReturnType<typeof inboxLocators>;
 
   constructor(private page: Page) {
@@ -17,6 +21,10 @@ export class InboxPage {
     this.contactName    = this.loc.contactName;
     this.messageThread  = this.loc.messageThread;
     this.detailPanel    = this.loc.detailPanel;
+    this.moreOptionsBtn = this.loc.moreOptionsBtn;
+    this.setUnreadBtn   = this.loc.setUnreadBtn;
+    this.copyLinkBtn    = this.loc.copyLinkBtn;
+    this.priorityCombo  = this.loc.priorityCombo;
   }
 
   async goto(): Promise<void> {

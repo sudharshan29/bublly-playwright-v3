@@ -11,13 +11,10 @@ test.describe.configure({ mode: 'serial' });
 test.describe('Inbox priority selection — TC_INB_055-056 @smoke', () => {
   test.setTimeout(60_000);
 
-  const priorityCombo = (page: any) =>
-    page.getByText('Priority', { exact: true }).locator('..').getByRole('combobox');
-
   test('TC_INB_055 set Priority to High in the Details panel', async ({ page, inboxPage }) => {
     await inboxPage.gotoConversation(conversations.open);
 
-    const combobox = priorityCombo(page);
+    const combobox = inboxPage.priorityCombo;
     await combobox.waitFor({ state: 'visible', timeout: 20_000 });
     await combobox.click();
 
@@ -31,7 +28,7 @@ test.describe('Inbox priority selection — TC_INB_055-056 @smoke', () => {
   test('TC_INB_056 change Priority from High to Low then restore to Medium', async ({ page, inboxPage }) => {
     await inboxPage.gotoConversation(conversations.open);
 
-    const combobox = priorityCombo(page);
+    const combobox = inboxPage.priorityCombo;
     await combobox.waitFor({ state: 'visible', timeout: 20_000 });
 
     // Change High → Low

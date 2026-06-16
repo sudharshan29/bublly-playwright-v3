@@ -14,16 +14,11 @@ test.describe.configure({ mode: 'serial' });
 test.describe('Inbox conversation state changes — TC_INB_050-051-057-059 @smoke', () => {
   test.setTimeout(120_000);
 
-  // Action icon locator shared across both tests.
-  // All 4 header icons share this class; .last() = More Options (confirmed from live DOM)
-  const moreOptionsLoc = (page: any) =>
-    page.locator('div[class*="cursor-pointer"][class*="rounded-full"][class*="dark:border-selected-grey-100"]').last();
-
   test('TC_INB_050 Close Conversation option in More Options opens confirmation dialog', async ({ page, inboxPage }) => {
     await inboxPage.gotoConversation(conversations.open);
 
     // Open More Options menu
-    await moreOptionsLoc(page).click();
+    await inboxPage.moreOptionsBtn.click();
     const closeMenuItem = page.getByRole('dialog').getByText('Close Conversation', { exact: true });
     await closeMenuItem.waitFor({ state: 'visible', timeout: 10_000 });
 
@@ -48,7 +43,7 @@ test.describe('Inbox conversation state changes — TC_INB_050-051-057-059 @smok
     await inboxPage.gotoConversation(conversations.open);
 
     // --- Step 1: archive the ticket ---
-    await moreOptionsLoc(page).click();
+    await inboxPage.moreOptionsBtn.click();
     const archiveMenuItem = page.getByRole('dialog').getByText('Archive Ticket', { exact: true });
     await archiveMenuItem.waitFor({ state: 'visible', timeout: 10_000 });
     await archiveMenuItem.click();
@@ -65,7 +60,7 @@ test.describe('Inbox conversation state changes — TC_INB_050-051-057-059 @smok
     expect(isArchived).toBe(true);
 
     // --- Step 3: unarchive (restore fixture) — Archive Ticket is a toggle ---
-    await moreOptionsLoc(page).click();
+    await inboxPage.moreOptionsBtn.click();
     await archiveMenuItem.waitFor({ state: 'visible', timeout: 10_000 });
     await archiveMenuItem.click();
     await page.waitForTimeout(2_500);
@@ -82,7 +77,7 @@ test.describe('Inbox conversation state changes — TC_INB_050-051-057-059 @smok
     await inboxPage.gotoConversation(conversations.open);
 
     // Open More Options → Close Conversation → confirm
-    await moreOptionsLoc(page).click();
+    await inboxPage.moreOptionsBtn.click();
     const closeMenuItem = page.getByRole('dialog').getByText('Close Conversation', { exact: true });
     await closeMenuItem.waitFor({ state: 'visible', timeout: 10_000 });
     await closeMenuItem.click();
@@ -133,7 +128,7 @@ test.describe('Inbox conversation state changes — TC_INB_050-051-057-059 @smok
     await inboxPage.gotoConversation(conversations.assigned);
 
     // Open More Options → Mark as Spam
-    await moreOptionsLoc(page).click();
+    await inboxPage.moreOptionsBtn.click();
     const spamMenuItem = page.getByRole('dialog').getByText('Mark as Spam', { exact: true });
     await spamMenuItem.waitFor({ state: 'visible', timeout: 10_000 });
     await spamMenuItem.click();
@@ -166,7 +161,7 @@ test.describe('Inbox conversation state changes — TC_INB_050-051-057-059 @smok
       await spamTicket.click();
       await page.waitForTimeout(1_500);
       // Try to un-spam via More Options or a "Not Spam" button
-      const moreBtn = moreOptionsLoc(page);
+      const moreBtn = inboxPage.moreOptionsBtn;
       const moreBtnVisible = await moreBtn.isVisible({ timeout: 5_000 }).catch(() => false);
       if (moreBtnVisible) {
         await moreBtn.click();

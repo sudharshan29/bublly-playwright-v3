@@ -138,4 +138,14 @@ test.describe('Inbox smoke — TC_INB_001–015 @smoke', () => {
     expect(bodyText).not.toContain('404');
   });
 
+  test('TC_INB_074 search by specific reply text returns matching conversation', async ({ page, inboxPage }) => {
+    await inboxPage.goto();
+    // TC_INB_040 sends "TC_INB_040 automated reply test" — search for that exact text
+    await inboxPage.search('TC_INB_040 automated reply test');
+    await page.locator('[class*="receiver-bg"]').first()
+      .waitFor({ state: 'visible', timeout: 20_000 }).catch(() => {});
+    const count = await inboxPage.getConversationCount();
+    expect(count).toBeGreaterThanOrEqual(1);
+  });
+
 });
