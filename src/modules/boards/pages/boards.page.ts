@@ -16,8 +16,7 @@ export class BoardsPage {
 
   async goto(boardId: string | number): Promise<void> {
     await this.page.goto(`/project/${env.workspace.projectId}/tickets/${boardId}`);
-    await this.page.waitForLoadState('networkidle', { timeout: TIMEOUTS.navigation });
-    // Wait until at least one column label is rendered
+    // networkidle is unreliable with the app's persistent WebSocket — wait for element instead
     await this.loc.openColumnLabel.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
   }
 
