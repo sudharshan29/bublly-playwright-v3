@@ -36,10 +36,10 @@ export class InboxDataHelper {
       await browser.close();
     }
 
-    // Poll for the new ticket — QA server ingestion can take 5-45s under concurrent widget load.
-    // Poll every 2s for up to 120s before giving up.
+    // Poll for the new ticket — QA server ingestion can take 5-45s; up to 180s in long full-suite runs.
+    // Poll every 2s for up to 180s before giving up.
     let newTicket: { id: number; is_deleted?: boolean } | undefined;
-    const deadline = Date.now() + 120_000;
+    const deadline = Date.now() + 180_000;
     while (Date.now() < deadline) {
       await this.page.waitForTimeout(2_000);
       const afterRes  = await this.page.request.post(`${env.apiBaseUrl}/chat/ticket_list`, {
@@ -54,7 +54,7 @@ export class InboxDataHelper {
       if (newTicket?.id) break;
     }
 
-    if (!newTicket?.id) throw new Error(`Widget message sent but new ticket not found in Open inbox after 120s.`);
+    if (!newTicket?.id) throw new Error(`Widget message sent but new ticket not found in Open inbox after 180s.`);
     return { id: String(newTicket.id), subject };
   }
 

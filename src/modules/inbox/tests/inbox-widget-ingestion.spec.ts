@@ -9,7 +9,7 @@ test.describe('Inbox widget ingestion — TC_INB_WGT_001-002 @smoke', () => {
   // retries: 0 — a retry spawns a second widget message, creating a duplicate conversation in QA.
   // These tests must fail hard so the root cause is investigated, not silently retried.
   test.describe.configure({ retries: 0 });
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
 
   test('TC_INB_WGT_001 widget message creates a routable conversation in the inbox', async ({ page, inboxPage, inboxData }) => {
 

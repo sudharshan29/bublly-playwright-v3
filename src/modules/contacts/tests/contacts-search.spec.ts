@@ -23,8 +23,8 @@ test.describe('Contacts search — TC_CON_010–014 @smoke', () => {
     await contactsPage.goto();
     const totalBefore = await contactsPage.getTotalCount();
     await contactsPage.search('QA Conv');
-    const totalAfter = await contactsPage.getTotalCount();
-    expect(totalAfter).toBeLessThan(totalBefore);
+    // Poll until pagination updates — server-side filtering can take longer than the fixed wait
+    await expect.poll(() => contactsPage.getTotalCount(), { timeout: 10_000 }).toBeLessThan(totalBefore);
   });
 
   test('TC_CON_013 clear button restores full contact list', async ({ contactsPage }) => {
