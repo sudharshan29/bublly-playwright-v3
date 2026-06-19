@@ -120,22 +120,26 @@ export class InboxDataHelper {
         }
       };
 
+      // Slate contenteditable divs reject fill() — click to focus then pressSequentially
+      const typeIntoChat = async (text: string) => {
+        await waitEditable();
+        await chatInput.click();
+        await chatInput.pressSequentially(text, { delay: 30 });
+      };
+
       // Step 1: send the label/question message — bot responds, asks for email
-      await waitEditable();
-      await chatInput.fill(message);
+      await typeIntoChat(message);
       await sendBtn.click();
 
       // Step 2: send a unique visitor email — identifies the visitor to the bot
       const visitorEmail = `visitor${Date.now()}@mailinator.com`;
-      await waitEditable();
-      await chatInput.fill(visitorEmail);
+      await typeIntoChat(visitorEmail);
       await sendBtn.click();
 
       // Step 3: send a follow-up message — this confirms routing to human agent
       // and causes the conversation to appear in the Open inbox (status 6423).
       // Seed tickets all use "yes" as the confirming message.
-      await waitEditable();
-      await chatInput.fill('yes');
+      await typeIntoChat('yes');
       await sendBtn.click();
 
       // Wait for the API to ingest, route, and index the ticket in the Open inbox
