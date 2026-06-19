@@ -5,15 +5,22 @@ dotenv.config({ path: '.env.qa' });
 import { env } from '../../../config/environment';
 
 const AUTH_FILE = '.auth/free-user.json';
+// Force re-login if the auth file is older than 20 minutes — ensures each run
+// starts with a fresh token that will outlast the longest expected suite run.
+const MAX_TOKEN_AGE_MS = 20 * 60 * 1000;
 
 export default async function globalSetup() {
   if (fs.existsSync(AUTH_FILE)) {
-    const valid = await validateTokenFromFile(AUTH_FILE);
-    if (valid) {
-      console.log('[global-setup] auth token still valid — skipping re-login');
-      return;
+    const ageMs = Date.now() - fs.statSync(AUTH_FILE).mtimeMs;
+    if (ageMs < MAX_TOKEN_AGE_MS) {
+      const valid = await validateTokenFromFile(AUTH_FILE);
+      if (valid) {
+        console.log(`[global-setup] auth token fresh (${Math.round(ageMs / 1000)}s old) — skipping re-login`);
+        await warmupWidgetServer();
+        return;
+      }
     }
-    console.log('[global-setup] auth token expired — re-logging in');
+    console.log('[global-setup] auth token stale or expired — re-logging in');
   }
 
   const browser = await chromium.launch();
@@ -32,10 +39,25 @@ export default async function globalSetup() {
   console.log(`[global-setup] auth file written to ${AUTH_FILE}`);
 
   await browser.close();
+
+  await warmupWidgetServer();
 }
 
-// Bublly TWO-STEP login: email → Sign In → still on /login → password → Sign In → /dashboard
-// The loading overlay (div.fixed.inset-0) appears between transitions and must be waited out.
+// ── Widget server warmup ───────────────────────────────────────────────────────
+// The help-center widget server sleeps when idle and takes 30-90s to cold-start.
+// A single HTTP request during global-setup wakes it so widget tests don't timeout.
+async function warmupWidgetServer(): Promise<void> {
+  const widgetUrl = env.helpCenterUrl ?? '';
+  if (!widgetUrl) return;
+  try {
+    const res = await fetch(widgetUrl, { method: 'HEAD', signal: AbortSignal.timeout(15_000) });
+    console.log(`[global-setup] widget server warmed up — HTTP ${res.status}`);
+  } catch {
+    console.log('[global-setup] widget server warmup skipped (timeout or unreachable)');
+  }
+}
+
+// ── Two-step login ─────────────────────────────────────────────────────────────
 async function doLogin(page: Page): Promise<void> {
   await page.goto(`${env.baseUrl}/login`);
 
@@ -45,7 +67,7 @@ async function doLogin(page: Page): Promise<void> {
   await page.getByRole('textbox', { name: 'Work Email*' }).fill(env.freeUser.email);
   await page.getByRole('button', { name: 'Sign In', exact: true }).click();
 
-  // Step 2: enter password (URL stays /login but password field appears)
+  // Step 2: enter password
   await page.waitForURL(/login/, { timeout: 30_000, waitUntil: 'commit' });
   await page.getByRole('textbox', { name: 'Password*' }).waitFor({ state: 'visible', timeout: 30_000 });
   await page.locator('div.fixed.inset-0').waitFor({ state: 'hidden', timeout: 30_000 });
@@ -55,8 +77,6 @@ async function doLogin(page: Page): Promise<void> {
 
 async function validateTokenFromFile(filePath: string): Promise<boolean> {
   const auth = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-
-  // Bublly stores auth ENTIRELY in sessionStorage.userKey — there are NO auth cookies.
   const userKeyRaw = auth.sessionStorageData?.userKey;
   if (!userKeyRaw) return false;
 
@@ -66,6 +86,7 @@ async function validateTokenFromFile(filePath: string): Promise<boolean> {
 
     const res = await fetch(`${env.apiBaseUrl}/users/getUser`, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(10_000),
     });
     return res.status === 200;
   } catch {

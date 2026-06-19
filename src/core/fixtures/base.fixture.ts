@@ -33,6 +33,21 @@ export const test = base.extend<Fixtures>({
       Object.entries(ss).forEach(([k, v]) => sessionStorage.setItem(k, v));
     }, authFile.sessionStorageData ?? {});
 
+    // Mid-run login guard: if the QA server redirects to /login unexpectedly
+    // (token invalidated by server restart or session expiry), re-inject the
+    // latest token from the auth file so the current test can recover on retry.
+    page.on('framenavigated', frame => {
+      if (frame !== page.mainFrame()) return;
+      const url = frame.url();
+      if (url.includes('/login')) {
+        const latest = JSON.parse(fs.readFileSync(authFilePath, 'utf-8'));
+        const ss = latest.sessionStorageData ?? {};
+        page.evaluate((data: Record<string, string>) => {
+          Object.entries(data).forEach(([k, v]) => sessionStorage.setItem(k, v));
+        }, ss).catch(() => {});
+      }
+    });
+
     await use(page);
     await ctx.close();
   },
