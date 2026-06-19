@@ -71,11 +71,12 @@ export class BoardsPage {
     const currentStatus = targetStatus === 'Done' ? 'Open' : 'Done';
 
     // Click the current-status badge inside the detail panel to open the dropdown
-    await this.loc.detailPanel
+    const badge = this.loc.detailPanel
       .locator('p, span, button')
       .filter({ hasText: new RegExp(`^${currentStatus}$`) })
-      .first()
-      .click();
+      .first();
+    await badge.waitFor({ state: 'visible', timeout: TIMEOUTS.slow });
+    await badge.click();
 
     await this.page.waitForTimeout(400);
 
