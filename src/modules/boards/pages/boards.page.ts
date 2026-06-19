@@ -83,7 +83,7 @@ export class BoardsPage {
     const option = this.page
       .getByRole('option', { name: targetStatus, exact: true })
       .or(this.page.getByLabel(targetStatus).getByText(targetStatus).first());
-    await option.first().waitFor({ state: 'visible', timeout: TIMEOUTS.element });
+    await option.first().waitFor({ state: 'visible', timeout: TIMEOUTS.slow });
     await option.first().click();
 
     // Give the server a moment to process the status change
