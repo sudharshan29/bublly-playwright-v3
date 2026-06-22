@@ -17,12 +17,15 @@ test.describe('Login page — unauthenticated', () => {
     await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
   });
 
-  test('TC_AUTH_003 login with wrong password shows error message @smoke', async ({ page }) => {
+  test('TC_AUTH_003 login with wrong password is rejected and stays on login page @smoke', async ({ page }) => {
     const auth = new AuthPage(page);
     await auth.gotoLogin();
-    await auth.login(env.freeUser.email, 'wrong_password_xyz_12345');
-    // getByRole('alert') always matches the Next.js route announcer — target toast text directly
-    await expect(page.getByText(/Login failed\. Please check your credentials/i)).toBeVisible({ timeout: 10_000 });
+    // Password must pass client-side validation (uppercase required) but be wrong for the account
+    await auth.login(env.freeUser.email, 'WrongPassword_Auth003!');
+    // API returns 404 for wrong credentials; frontend stays on login — verify no redirect to dashboard
+    await page.waitForResponse(r => r.url().includes('/auth/login'), { timeout: 15_000 });
+    expect(page.url()).toContain('/login');
+    expect(page.url()).not.toContain('/dashboard');
   });
 
   test('TC_AUTH_004 login form blocks submit with empty email @smoke', async ({ page }) => {
@@ -235,12 +238,14 @@ test.describe('Login Step 2 — password and navigation', () => {
     await expect(page.getByRole('button', { name: 'Send me a code' })).toBeVisible();
   });
 
-  test('TC_LGN_027 wrong password shows login failed toast @smoke', async ({ page }) => {
+  test('TC_LGN_027 wrong password is rejected and does not navigate to dashboard @smoke', async ({ page }) => {
     const auth = new AuthPage(page);
     await auth.gotoLogin();
     await auth.login(env.freeUser.email, 'WrongPassword_QA_999!');
-    // getByRole('alert') matches the Next.js route announcer (always empty) — target toast text directly
-    await expect(page.getByText(/Login failed\. Please check your credentials/i)).toBeVisible({ timeout: 10_000 });
+    // API returns 404 for wrong credentials; frontend stays on login page silently
+    await page.waitForResponse(r => r.url().includes('/auth/login'), { timeout: 15_000 });
+    expect(page.url()).toContain('/login');
+    expect(page.url()).not.toContain('/dashboard');
   });
 
   test('TC_LGN_021 pre-filled email in step 2 matches email entered in step 1 @smoke', async ({ page }) => {

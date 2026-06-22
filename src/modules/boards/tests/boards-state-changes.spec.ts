@@ -9,7 +9,8 @@ let initialDoneCnt  = 0;
 test.describe.configure({ mode: 'serial' });
 
 test.describe('Boards status change — TC_BRD_039–041 @smoke', () => {
-  test.setTimeout(120_000);
+  // 300s: each setStatus() waits up to 90s for badge + 90s for option on slow QA server
+  test.setTimeout(300_000);
 
   test('TC_BRD_039 changing ticket Status to Done moves it to Done column', async ({ boardsPage, page }) => {
     await boardsPage.gotoBugBoard();
