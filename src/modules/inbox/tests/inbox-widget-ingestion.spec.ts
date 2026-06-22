@@ -13,8 +13,10 @@ test.describe('Inbox widget ingestion — TC_INB_WGT_001-002 @smoke', () => {
 
   // Warm up the widget server immediately before these tests run.
   // The server may have gone cold during the ~25 min suite that runs before this group.
-  // Poll every 10s for up to 3 minutes until the server responds.
-  test.beforeAll(async () => {
+  // Uses Playwright's request fixture (ignoreHTTPSErrors: true) because the widget
+  // subdomain has a self-signed cert that Node.js fetch() rejects by default.
+  // Polls every 10s for up to 3 minutes. beforeAll timeout set to 200s to cover this.
+  test.beforeAll(async ({ request }) => {
     const widgetUrl = process.env.HELP_CENTER_URL ?? '';
     if (!widgetUrl) return;
     const deadline = Date.now() + 180_000;
@@ -22,8 +24,8 @@ test.describe('Inbox widget ingestion — TC_INB_WGT_001-002 @smoke', () => {
     while (Date.now() < deadline) {
       attempt++;
       try {
-        const res = await fetch(widgetUrl, { signal: AbortSignal.timeout(20_000) });
-        console.log(`[widget-warmup] server ready (attempt ${attempt}) — HTTP ${res.status}`);
+        const res = await request.get(widgetUrl, { timeout: 20_000 });
+        console.log(`[widget-warmup] server ready (attempt ${attempt}) — HTTP ${res.status()}`);
         return;
       } catch {
         console.log(`[widget-warmup] not ready yet (attempt ${attempt}) — retrying in 10s`);
@@ -31,7 +33,7 @@ test.describe('Inbox widget ingestion — TC_INB_WGT_001-002 @smoke', () => {
       }
     }
     console.log('[widget-warmup] timed out after 3 min — proceeding anyway');
-  });
+  }, { timeout: 200_000 });
 
   test('TC_INB_WGT_001 widget message creates a routable conversation in the inbox', async ({ page, inboxPage, inboxData }) => {
 

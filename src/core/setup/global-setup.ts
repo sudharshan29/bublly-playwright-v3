@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { chromium, type Page } from '@playwright/test';
+import { chromium, request, type Page } from '@playwright/test';
 import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.qa' });
 import { env } from '../../../config/environment';
@@ -45,24 +45,31 @@ export default async function globalSetup() {
 
 // ── Widget server warmup ───────────────────────────────────────────────────────
 // The help-center widget server sleeps when idle and takes 60-180s to cold-start.
-// Poll every 10s for up to 3 minutes so widget tests don't fail on cold-start.
+// Uses Playwright request API (ignoreHTTPSErrors: true) because the QA widget
+// subdomain has a self-signed cert that Node.js fetch() rejects by default.
+// Polls every 10s for up to 3 minutes.
 async function warmupWidgetServer(): Promise<void> {
   const widgetUrl = env.helpCenterUrl ?? '';
   if (!widgetUrl) return;
+  const ctx = await request.newContext({ ignoreHTTPSErrors: true });
   const deadline = Date.now() + 180_000;
   let attempt = 0;
-  while (Date.now() < deadline) {
-    attempt++;
-    try {
-      const res = await fetch(widgetUrl, { method: 'GET', signal: AbortSignal.timeout(20_000) });
-      console.log(`[global-setup] widget server warmed up (attempt ${attempt}) — HTTP ${res.status}`);
-      return;
-    } catch {
-      console.log(`[global-setup] widget server not ready yet (attempt ${attempt}) — retrying in 10s`);
-      await new Promise(r => setTimeout(r, 10_000));
+  try {
+    while (Date.now() < deadline) {
+      attempt++;
+      try {
+        const res = await ctx.get(widgetUrl, { timeout: 20_000 });
+        console.log(`[global-setup] widget server warmed up (attempt ${attempt}) — HTTP ${res.status()}`);
+        return;
+      } catch {
+        console.log(`[global-setup] widget server not ready yet (attempt ${attempt}) — retrying in 10s`);
+        await new Promise(r => setTimeout(r, 10_000));
+      }
     }
+    console.log('[global-setup] widget server warmup timed out after 3 min — widget tests may be slow');
+  } finally {
+    await ctx.dispose();
   }
-  console.log('[global-setup] widget server warmup timed out after 3 min — widget tests may be slow');
 }
 
 // ── Two-step login ─────────────────────────────────────────────────────────────
