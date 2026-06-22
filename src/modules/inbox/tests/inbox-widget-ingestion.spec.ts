@@ -11,6 +11,28 @@ test.describe('Inbox widget ingestion — TC_INB_WGT_001-002 @smoke', () => {
   test.describe.configure({ retries: 0 });
   test.setTimeout(420_000);
 
+  // Warm up the widget server immediately before these tests run.
+  // The server may have gone cold during the ~25 min suite that runs before this group.
+  // Poll every 10s for up to 3 minutes until the server responds.
+  test.beforeAll(async () => {
+    const widgetUrl = process.env.HELP_CENTER_URL ?? '';
+    if (!widgetUrl) return;
+    const deadline = Date.now() + 180_000;
+    let attempt = 0;
+    while (Date.now() < deadline) {
+      attempt++;
+      try {
+        const res = await fetch(widgetUrl, { signal: AbortSignal.timeout(20_000) });
+        console.log(`[widget-warmup] server ready (attempt ${attempt}) — HTTP ${res.status}`);
+        return;
+      } catch {
+        console.log(`[widget-warmup] not ready yet (attempt ${attempt}) — retrying in 10s`);
+        await new Promise(r => setTimeout(r, 10_000));
+      }
+    }
+    console.log('[widget-warmup] timed out after 3 min — proceeding anyway');
+  });
+
   test('TC_INB_WGT_001 widget message creates a routable conversation in the inbox', async ({ page, inboxPage, inboxData }) => {
 
     const { id } = await inboxData.createOwnedConversation('tc_wgt_001');

@@ -44,22 +44,25 @@ export default async function globalSetup() {
 }
 
 // ── Widget server warmup ───────────────────────────────────────────────────────
-// The help-center widget server sleeps when idle and takes 30-90s to cold-start.
-// Retry up to 4 times with 30s timeout each so widget tests don't fail on cold-start.
+// The help-center widget server sleeps when idle and takes 60-180s to cold-start.
+// Poll every 10s for up to 3 minutes so widget tests don't fail on cold-start.
 async function warmupWidgetServer(): Promise<void> {
   const widgetUrl = env.helpCenterUrl ?? '';
   if (!widgetUrl) return;
-  const MAX_ATTEMPTS = 4;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  const deadline = Date.now() + 180_000;
+  let attempt = 0;
+  while (Date.now() < deadline) {
+    attempt++;
     try {
-      const res = await fetch(widgetUrl, { method: 'GET', signal: AbortSignal.timeout(30_000) });
+      const res = await fetch(widgetUrl, { method: 'GET', signal: AbortSignal.timeout(20_000) });
       console.log(`[global-setup] widget server warmed up (attempt ${attempt}) — HTTP ${res.status}`);
       return;
     } catch {
-      console.log(`[global-setup] widget server warmup attempt ${attempt}/${MAX_ATTEMPTS} timed out — retrying`);
+      console.log(`[global-setup] widget server not ready yet (attempt ${attempt}) — retrying in 10s`);
+      await new Promise(r => setTimeout(r, 10_000));
     }
   }
-  console.log('[global-setup] widget server warmup failed after all attempts — widget tests may be slow');
+  console.log('[global-setup] widget server warmup timed out after 3 min — widget tests may be slow');
 }
 
 // ── Two-step login ─────────────────────────────────────────────────────────────
