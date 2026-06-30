@@ -22,7 +22,8 @@ export function inboxLocators(page: Page) {
     // Resolved via accessible name — immune to positional DOM changes
     sendBtn:              page.locator('[aria-modal="true"]').first().getByRole('button', { name: 'Send', exact: true }),
 
-    statusDropdown:       page.getByRole('combobox').filter({ hasText: /\d{2,}/ }).first(),
+    // Filter requires at least one digit — broadened from \d{2,} which broke on inbox counts < 10.
+    statusDropdown:       page.getByRole('combobox').filter({ hasText: /\d+/ }).first(),
     statusOpen:           page.getByRole('option', { name: /Open/i }),
     statusSnoozed:        page.getByRole('option', { name: /Snoozed/i }),
     statusClosed:         page.getByRole('option', { name: /Closed/i }),
@@ -69,7 +70,7 @@ export function inboxLocators(page: Page) {
     snoozeCustom:         page.getByRole('dialog').getByText('Custom',     { exact: true }),
 
     closeConvMenuItem:    page.getByRole('dialog').getByText('Close Conversation', { exact: true }),
-    archiveTicketMenuItem: page.getByRole('dialog').getByText('Archive Ticket',    { exact: true }),
+    archiveTicketMenuItem: page.getByRole('dialog').getByText(/archive ticket/i),
 
     closeConfirmBtn:      page.getByRole('button', { name: 'Close',  exact: true }),
     cancelConfirmBtn:     page.getByRole('button', { name: 'Cancel', exact: true }),

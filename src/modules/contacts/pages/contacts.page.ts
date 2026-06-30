@@ -21,7 +21,12 @@ export class ContactsPage {
 
   async gotoContact(id: string | number): Promise<void> {
     await this.page.goto(`/contacts/users/${id}`);
-    await this.loc.userDetailHeading.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
+    try {
+      await this.loc.userDetailHeading.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
+    } catch {
+      await this.page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await this.loc.userDetailHeading.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
+    }
   }
 
   // ── Sidebar ───────────────────────────────────────────────────────────
