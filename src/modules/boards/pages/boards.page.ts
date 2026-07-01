@@ -232,11 +232,20 @@ export class BoardsPage {
     }, name);
 
     if (idx >= 0) {
-      const input = this.page.locator('input').nth(idx);
-      await input.waitFor({ state: 'visible', timeout: TIMEOUTS.element });
-      const row = input.locator('..');
-      await row.locator('button').last().click();
-      await input.waitFor({ state: 'hidden', timeout: TIMEOUTS.element }).catch(() => {});
+      // Delete all duplicates (parallel workers may have added the same column multiple times)
+      let currentIdx = idx;
+      while (currentIdx >= 0) {
+        const input = this.page.locator('input').nth(currentIdx);
+        await input.waitFor({ state: 'visible', timeout: TIMEOUTS.element });
+        await input.scrollIntoViewIfNeeded();
+        const row = input.locator('..');
+        await row.locator('button').last().click({ timeout: TIMEOUTS.action });
+        await input.waitFor({ state: 'hidden', timeout: TIMEOUTS.element }).catch(() => {});
+        currentIdx = await this.page.evaluate((colName) => {
+          const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input'));
+          return inputs.findIndex((i) => i.value === colName);
+        }, name);
+      }
       return;
     }
 

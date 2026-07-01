@@ -9,9 +9,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 1,
-  // Widget smoke tests (TC_INB_WGT_001/002) are skipped — starter-project widget renders
-  // 0 buttons in headless Chrome. 2 workers is safe; use WORKERS=1 env var to force serial.
-  workers: process.env.WORKERS ? Number(process.env.WORKERS) : 2,
+  workers: process.env.WORKERS ? Number(process.env.WORKERS) : 4,
   expect: { timeout: 20_000 },
   reporter: [
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
