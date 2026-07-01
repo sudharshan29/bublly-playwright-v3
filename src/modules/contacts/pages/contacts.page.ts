@@ -15,8 +15,14 @@ export class ContactsPage {
 
   async goto(): Promise<void> {
     await this.page.goto('/contacts');
-    await this.loc.pageHeading.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
-    await this.loc.contactTable.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
+    try {
+      await this.loc.pageHeading.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
+      await this.loc.contactTable.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
+    } catch {
+      await this.page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await this.loc.pageHeading.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
+      await this.loc.contactTable.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
+    }
   }
 
   async gotoContact(id: string | number): Promise<void> {
