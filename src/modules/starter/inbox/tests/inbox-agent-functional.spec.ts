@@ -76,11 +76,19 @@ test.describe('Starter Agent — Inbox Functional — TC_AGT_INB_001–005 @smok
       .locator('..')
       .getByRole('combobox');
     await expect(priorityCombo).toBeVisible({ timeout: 15_000 });
-    await priorityCombo.click();
-    await page.locator('[role="listbox"]').first().waitFor({ state: 'visible', timeout: 10_000 });
-    const highOption = page.getByRole('option', { name: 'High', exact: true });
-    await highOption.waitFor({ state: 'visible', timeout: 10_000 });
-    await highOption.click();
+    // Retry loop — listbox can close if QA server re-renders during click
+    let selected = false;
+    for (let attempt = 0; attempt < 3 && !selected; attempt++) {
+      await priorityCombo.click();
+      const listbox = page.locator('[role="listbox"]').first();
+      const opened = await listbox.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false);
+      if (!opened) { await page.keyboard.press('Escape'); continue; }
+      const opt = listbox.getByRole('option', { name: 'High', exact: true });
+      const ready = await opt.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false);
+      if (!ready) { await page.keyboard.press('Escape'); continue; }
+      await opt.click();
+      selected = true;
+    }
     await page.waitForTimeout(500);
     const updatedValue = await priorityCombo.textContent();
     expect(updatedValue?.toLowerCase()).toContain('high');
