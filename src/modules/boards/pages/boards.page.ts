@@ -1,7 +1,8 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { env }              from '../../../../config/environment';
 import { TIMEOUTS }         from '../../../core/constants/timeouts';
 import { boardsLocators }   from '../locators/boards.locators';
+import fixtureData          from '../../../../.fixtures/fixture-data.json';
 
 export class BoardsPage {
   readonly page: Page;
@@ -16,12 +17,25 @@ export class BoardsPage {
 
   async goto(boardId: string | number): Promise<void> {
     await this.page.goto(`/project/${env.workspace.projectId}/tickets/${boardId}`);
-    // networkidle is unreliable with the app's persistent WebSocket — wait for element instead
-    await this.loc.openColumnLabel.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
+    // Wait for board content AND sidebar simultaneously — sidebar loads from a separate API call
+    // and must be ready before any test checks sidebar links (e.g. TC_BRD_005).
+    // QA app can throw a Next.js client-side exception (crash page) — reload clears it.
+    try {
+      await Promise.all([
+        this.loc.openColumnLabel.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation }),
+        this.loc.bugBoardLink.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation }),
+      ]);
+    } catch {
+      await this.page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await Promise.all([
+        this.loc.openColumnLabel.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation }),
+        this.loc.bugBoardLink.waitFor({ state: 'visible', timeout: TIMEOUTS.navigation }),
+      ]);
+    }
   }
 
-  async gotoBugBoard():     Promise<void> { await this.goto(1895); }
-  async gotoFeatureBoard(): Promise<void> { await this.goto(1896); }
+  async gotoBugBoard():     Promise<void> { await this.goto(fixtureData.boards.bugBoardId); }
+  async gotoFeatureBoard(): Promise<void> { await this.goto(fixtureData.boards.featureBoardId); }
 
   // ── Column counts ─────────────────────────────────────────────────────
 
@@ -68,27 +82,33 @@ export class BoardsPage {
   // ── Status change ─────────────────────────────────────────────────────
 
   async setStatus(targetStatus: 'Open' | 'Done'): Promise<void> {
-    const currentStatus = targetStatus === 'Done' ? 'Open' : 'Done';
-
-    // Click the current-status badge inside the detail panel to open the dropdown
-    const badge = this.loc.detailPanel
-      .locator('p, span, button')
-      .filter({ hasText: new RegExp(`^${currentStatus}$`) })
+    // Detect the actual current status badge rather than assuming it.
+    // The panel content loads asynchronously after the panel container becomes visible,
+    // so we wait for EITHER badge to appear (whichever the server returns).
+    // Scope to the Status label row — the value shows "Select Status...", "Open", or "Done"
+    const statusRow = this.loc.detailPanel
+      .getByText('Status', { exact: true })
+      .locator('..');
+    const badge = statusRow
+      .locator('p, span, button, div, [role="combobox"]')
+      .filter({ hasText: /Open|Done|Select/i })
       .first();
     await badge.waitFor({ state: 'visible', timeout: TIMEOUTS.slow });
+
+    const currentText = (await badge.textContent())?.trim() ?? '';
+    if (currentText === targetStatus) return; // already in target state
+
     await badge.click();
 
-    await this.page.waitForTimeout(400);
-
-    // Radix / custom dropdown: select the target option
+    // Dropdown opens — select the target column status
     const option = this.page
       .getByRole('option', { name: targetStatus, exact: true })
-      .or(this.page.getByLabel(targetStatus).getByText(targetStatus).first());
+      .or(this.page.locator('li, div[role="option"]').filter({ hasText: new RegExp(`^${targetStatus}$`) }).first());
     await option.first().waitFor({ state: 'visible', timeout: TIMEOUTS.slow });
     await option.first().click();
 
-    // Give the server a moment to process the status change
-    await this.page.waitForTimeout(1_500);
+    // Wait for badge to reflect the new status — confirms server-side update received
+    await expect(badge).toContainText(targetStatus, { timeout: TIMEOUTS.element });
   }
 
   // ── Search ────────────────────────────────────────────────────────────
@@ -101,22 +121,22 @@ export class BoardsPage {
   async search(query: string): Promise<void> {
     await this.openSearch();
     await this.loc.searchInput.fill(query);
-    await this.page.waitForTimeout(1_000);
+    await this.loc.searchInput.press('Enter');
   }
 
   async clearSearch(): Promise<void> {
-    // Clear the input text directly, then press Escape to close the search bar
     await this.loc.searchInput.clear();
-    await this.page.waitForTimeout(300);
+    await this.loc.searchInput.fill('');
+    await this.loc.searchInput.press('Enter');
     await this.page.keyboard.press('Escape');
-    await this.page.waitForTimeout(1_500);
+    await this.loc.searchInput.waitFor({ state: 'hidden', timeout: TIMEOUTS.element }).catch(() => {});
   }
 
   // ── Sort ──────────────────────────────────────────────────────────────
 
   async openSort(): Promise<void> {
     await this.loc.sortIcon.click();
-    await this.page.waitForTimeout(400);
+    await this.loc.sortApplyBtn.waitFor({ state: 'visible', timeout: TIMEOUTS.element });
   }
 
   async applySort(option: 'Created Date' | 'Due Date' | 'Assignee' | 'Priority'): Promise<void> {
@@ -125,29 +145,29 @@ export class BoardsPage {
     else if (option === 'Assignee') await this.loc.sortAssignee.click();
     else                            await this.loc.sortPriority.click();
     await this.loc.sortApplyBtn.click();
-    await this.page.waitForTimeout(1_000);
+    await this.loc.sortApplyBtn.waitFor({ state: 'hidden', timeout: TIMEOUTS.element }).catch(() => {});
   }
 
   async clearSort(): Promise<void> {
     await this.loc.sortClearBtn.click();
-    await this.page.waitForTimeout(500);
+    await this.loc.sortClearBtn.waitFor({ state: 'hidden', timeout: TIMEOUTS.element }).catch(() => {});
   }
 
   // ── Filter ────────────────────────────────────────────────────────────
 
   async openFilter(): Promise<void> {
     await this.loc.filterIcon.click();
-    await this.page.waitForTimeout(400);
+    await this.loc.filterApplyBtn.waitFor({ state: 'visible', timeout: TIMEOUTS.element });
   }
 
   async applyFilter(): Promise<void> {
     await this.loc.filterApplyBtn.click();
-    await this.page.waitForTimeout(1_000);
+    await this.loc.filterApplyBtn.waitFor({ state: 'hidden', timeout: TIMEOUTS.element }).catch(() => {});
   }
 
   async clearFilter(): Promise<void> {
     await this.loc.filterClearBtn.click();
-    await this.page.waitForTimeout(2_000);
+    await this.loc.filterClearBtn.waitFor({ state: 'hidden', timeout: TIMEOUTS.element }).catch(() => {});
   }
 
   // ── Settings ──────────────────────────────────────────────────────────
@@ -165,25 +185,19 @@ export class BoardsPage {
   }
 
   async saveSettings(): Promise<void> {
-    // Save button starts disabled; it becomes enabled once changes are confirmed.
-    // Poll up to 10 s rather than clicking immediately and timing out.
+    // Save button starts disabled — wait for it to become enabled before clicking.
     await this.loc.settingsSaveBtn.waitFor({ state: 'visible', timeout: TIMEOUTS.element });
-    for (let i = 0; i < 20; i++) {
-      if (await this.loc.settingsSaveBtn.isEnabled()) break;
-      await this.page.waitForTimeout(500);
-    }
+    await expect(this.loc.settingsSaveBtn).toBeEnabled({ timeout: TIMEOUTS.element });
     await this.loc.settingsSaveBtn.click();
     await this.loc.settingsModalTitle
       .waitFor({ state: 'hidden', timeout: TIMEOUTS.action })
       .catch(() => {});
-    await this.page.waitForTimeout(1_000);
   }
 
   // Clicks "+ Add column" in the settings modal and optionally names the new column.
   // Uses pressSequentially (not fill) so React's onChange fires and enables Save.
   async addColumn(name?: string): Promise<void> {
     await this.loc.settingsAddColumnBtn.click();
-    await this.page.waitForTimeout(500);
     if (name) {
       // Scope to the modal via the Close button anchor; the new column input is the
       // LAST <input> inside the same div that holds the close button.
@@ -196,10 +210,14 @@ export class BoardsPage {
       await newInput.clear();
       // pressSequentially dispatches key events per character so React's onChange
       // fires and marks the form as dirty, enabling the Save button.
-      await newInput.pressSequentially(name, { delay: 40 });
-      // Click elsewhere in the modal to trigger blur/onChange on the column input
-      await this.loc.settingsModalTitle.click();
-      await this.page.waitForTimeout(600);
+      // pressSequentially fires native key events per character — triggers React onChange.
+      // Triple-click first to select any placeholder text before typing.
+      await newInput.click({ clickCount: 3 });
+      await newInput.fill(name);  // fill() triggers React's synthetic onChange via input events
+      // Tab triggers blur/focusout so React commits the value and enables Save
+      await newInput.press('Tab');
+      // Allow time for React to process the value change before caller checks Save state
+      await this.page.waitForTimeout(500);
     }
   }
 
@@ -218,7 +236,7 @@ export class BoardsPage {
       await input.waitFor({ state: 'visible', timeout: TIMEOUTS.element });
       const row = input.locator('..');
       await row.locator('button').last().click();
-      await this.page.waitForTimeout(500);
+      await input.waitFor({ state: 'hidden', timeout: TIMEOUTS.element }).catch(() => {});
       return;
     }
 
@@ -268,12 +286,13 @@ export class BoardsPage {
 
   async openAddTicketOnOpenColumn(): Promise<void> {
     await this.loc.openColumnAddBtn.click();
-    await this.page.waitForTimeout(1_000);
+    await this.loc.addBugModalTitle.or(this.loc.addFeatureModalTitle).first()
+      .waitFor({ state: 'visible', timeout: TIMEOUTS.element });
   }
 
   async openAddTicketOnFeatureBoard(): Promise<void> {
     await this.gotoFeatureBoard();
     await this.loc.openColumnAddBtn.click();
-    await this.page.waitForTimeout(1_000);
+    await this.loc.addFeatureModalTitle.waitFor({ state: 'visible', timeout: TIMEOUTS.element });
   }
 }
