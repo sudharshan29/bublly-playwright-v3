@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/inbox.fixture';
 import fixtureData       from '../../../../.fixtures/fixture-data.json';
+import { env }           from '../../../../config/environment';
 
 const { conversations } = fixtureData;
 
@@ -52,12 +53,9 @@ test.describe('Inbox conversation state changes — TC_INB_050-051-057-059 @smok
 
     // --- Step 2: verify ticket is now in archived view ---
     await inboxPage.gotoConversation(conversations.open, 'archived');
-    // If the ticket loaded correctly at the archived URL, the composer should be visible
-    const composerVisible = await page.locator('[role="textbox"][aria-multiline="true"]').first()
-      .isVisible({ timeout: 15_000 }).catch(() => false);
-    const inboxFilterText = await page.getByRole('combobox').first().textContent().catch(() => '');
-    const isArchived = composerVisible || (inboxFilterText ?? '').toLowerCase().includes('archiv');
-    expect(isArchived).toBe(true);
+    // Composer visible at the archived URL confirms the ticket loaded from the archived state
+    await expect(page.locator('[role="textbox"][aria-multiline="true"]').first())
+      .toBeVisible({ timeout: 10_000 });
 
     // --- Step 3: unarchive (restore fixture) — Archive Ticket is a toggle ---
     await inboxPage.moreOptionsBtn.click();
@@ -90,14 +88,12 @@ test.describe('Inbox conversation state changes — TC_INB_050-051-057-059 @smok
 
     // Navigate to the closed URL — ticket should now load there
     await inboxPage.gotoConversation(conversations.open, 'closed');
-    const composerVisible = await page.locator('[role="textbox"][aria-multiline="true"]').first()
-      .isVisible({ timeout: 15_000 }).catch(() => false);
 
-    // The "Open" button (Reopen) must appear on a closed ticket
-    const reopenVisible = await page.getByRole('button', { name: 'Open', exact: true })
-      .isVisible({ timeout: 10_000 }).catch(() => false);
-
-    expect(composerVisible || reopenVisible).toBe(true);
+    // Either the Reopen ("Open") button or the standard composer must be visible —
+    // use .or() so Playwright retries until one appears (web-first assertion)
+    const reopenBtn = page.getByRole('button', { name: 'Open', exact: true });
+    const textbox   = page.locator('[role="textbox"][aria-multiline="true"]').first();
+    await expect(reopenBtn.or(textbox)).toBeVisible({ timeout: 15_000 });
   });
 
   test('TC_INB_058 Reopen closed conversation restores ticket to open state', async ({ page, inboxPage }) => {
@@ -147,9 +143,8 @@ test.describe('Inbox conversation state changes — TC_INB_050-051-057-059 @smok
     await page.waitForTimeout(2_000);
 
     // ── Restore: navigate to archived-spam view and un-spam ──
-    const projectId = '2241b02a-5faa-43e8-869a-98db95ef66cc';
     await page.goto(
-      `https://qa-desk.bublly.com/project/${projectId}/inbox/archived-spam`,
+      `${env.baseUrl}/project/${env.workspace.projectId}/inbox/archived-spam`,
       { waitUntil: 'domcontentloaded', timeout: 30_000 }
     );
     await page.waitForTimeout(2_000);

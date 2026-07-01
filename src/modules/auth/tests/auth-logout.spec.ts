@@ -7,6 +7,9 @@ import { test, expect } from '@playwright/test';
 import { AuthPage }     from '../pages/auth.page';
 import { env }          from '../../../../config/environment';
 
+// Logout tests do a full login→logout cycle — start from a clean unauthenticated context.
+test.use({ storageState: undefined });
+
 test.describe('Logout flow', () => {
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(120_000);

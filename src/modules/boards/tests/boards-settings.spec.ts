@@ -1,5 +1,9 @@
 import { test, expect } from '../fixtures/boards.fixture';
 
+// Unique per test-session so a leftover column from a prior run never causes the
+// duplicate-name validation error ("A column with this name already exists").
+const TEST_COLUMN_NAME = `QA${Date.now().toString().slice(-5)}`;
+
 // Settings changes are reversible but require serial ordering to sequence add→delete cleanly.
 // TC_BRD_031 renames and restores inline.
 // TC_BRD_052–055 form a self-restoring add→delete cycle.
@@ -41,21 +45,25 @@ test.describe('Boards settings — TC_BRD_026–031 and TC_BRD_052–055 @smoke'
   test('TC_BRD_028 settings modal shows Open and Done as existing columns', async ({ boardsPage, page }) => {
     await boardsPage.gotoBugBoard();
     await boardsPage.openSettings();
-    await expect(boardsPage.loc.settingsModalTitle).toBeVisible({ timeout: 5_000 });
-    // Bublly may render column names as contenteditable divs (not native inputs).
-    // Falls back to page-text check: "Open" and "Done" are also board column headers
-    // visible behind the modal, so this is always satisfiable on the Bug board.
-    const hasDefault = await page.evaluate(() => {
-      const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input'));
-      if (inputs.some((i) => i.value === 'Open' || i.value === 'Done')) return true;
-      const editables = Array.from(
-        document.querySelectorAll<HTMLElement>('[contenteditable="true"],[contenteditable=""]')
-      );
-      if (editables.some((e) => { const t = e.textContent?.trim(); return t === 'Open' || t === 'Done'; })) return true;
-      const text = document.body.innerText;
-      return /\bOpen\b/.test(text) && /\bDone\b/.test(text);
-    });
-    expect(hasDefault).toBe(true);
+    await expect(boardsPage.loc.settingsModalTitle).toBeVisible({ timeout: 10_000 });
+    // waitFor close button — confirms modal chrome is fully rendered before checking column list
+    await boardsPage.loc.settingsCloseBtn.waitFor({ state: 'visible', timeout: 10_000 });
+    // waitForFunction retries every ~100 ms until the column list loads (it renders async).
+    // Anchors on the close button (unique to this modal) and walks up to the modal root,
+    // then verifies "Open" and "Done" appear in that container's textContent.
+    await page.waitForFunction(() => {
+      const closeBtn = document.querySelector('button[aria-label="Close dialog"]');
+      if (!closeBtn) return false;
+      let el: Element | null = closeBtn;
+      while (el && el !== document.body) {
+        const text = el.textContent ?? '';
+        if (text.includes('Board Management Settings') && text.includes('Open') && text.includes('Done')) {
+          return true;
+        }
+        el = el.parentElement;
+      }
+      return false;
+    }, { timeout: 15_000 });
   });
 
   test('TC_BRD_029 Add column button is visible in settings modal', async ({ boardsPage }) => {
@@ -138,7 +146,7 @@ test.describe('Boards settings — TC_BRD_026–031 and TC_BRD_052–055 @smoke'
     await boardsPage.gotoBugBoard();
     await boardsPage.openSettings();
 
-    await boardsPage.addColumn('InProgressAuto');
+    await boardsPage.addColumn(TEST_COLUMN_NAME);
 
     // Free plan may restrict saving new columns (Save stays disabled like board rename).
     // If Save becomes enabled within 5 s, save and verify. Otherwise, close and mark pass.
@@ -157,41 +165,47 @@ test.describe('Boards settings — TC_BRD_026–031 and TC_BRD_052–055 @smoke'
 
     await boardsPage.saveSettings();
     await expect(
-      page.locator('p').filter({ hasText: /^InProgressAuto$/ }).first()
+      page.locator('p').filter({ hasText: new RegExp('^' + TEST_COLUMN_NAME + '$') }).first()
     ).toBeVisible({ timeout: 10_000 });
   });
 
   test('TC_BRD_054 delete icon removes the custom column from settings list', async ({ boardsPage, page }) => {
     // Navigate first so we can check board state accurately (each test gets a fresh page)
     await boardsPage.gotoBugBoard();
-    const columnOnBoard = await page.evaluate(() => document.body.innerText.includes('InProgressAuto'));
+    const columnOnBoard = await page.evaluate(
+      (col) => document.body.innerText.includes(col),
+      TEST_COLUMN_NAME
+    );
 
     await boardsPage.openSettings();
     await expect(boardsPage.loc.settingsModalTitle).toBeVisible({ timeout: 5_000 });
 
     if (columnOnBoard) {
       // Column exists (saved by TC_BRD_053 or residual from a previous run) — delete it
-      await boardsPage.deleteColumn('InProgressAuto');
+      await boardsPage.deleteColumn(TEST_COLUMN_NAME);
     }
     // TC_BRD_055 verifies the deletion took effect after saving
   });
 
   test('TC_BRD_055 saving after delete removes column from kanban board', async ({ boardsPage, page }) => {
-    // Navigate first, then determine whether InProgressAuto column is on the board
+    // Navigate first, then determine whether the test column is on the board
     await boardsPage.gotoBugBoard();
-    const columnOnBoard = await page.evaluate(() => document.body.innerText.includes('InProgressAuto'));
+    const columnOnBoard = await page.evaluate(
+      (col) => document.body.innerText.includes(col),
+      TEST_COLUMN_NAME
+    );
 
     if (!columnOnBoard) {
       // Column was never saved (free plan restricted) — just verify it's absent
       await expect(
-        page.locator('p').filter({ hasText: /^InProgressAuto$/ }).first()
+        page.locator('p').filter({ hasText: new RegExp('^' + TEST_COLUMN_NAME + '$') }).first()
       ).not.toBeVisible({ timeout: 5_000 });
       return;
     }
 
     // Column IS on the board: open settings, delete, then save if Save is enabled
     await boardsPage.openSettings();
-    await boardsPage.deleteColumn('InProgressAuto');
+    await boardsPage.deleteColumn(TEST_COLUMN_NAME);
     await page.waitForTimeout(500);
 
     const saveEnabled = await boardsPage.loc.settingsSaveBtn
@@ -201,14 +215,14 @@ test.describe('Boards settings — TC_BRD_026–031 and TC_BRD_052–055 @smoke'
       await boardsPage.saveSettings();
       // Column should no longer appear as a kanban column header
       await expect(
-        page.locator('p').filter({ hasText: /^InProgressAuto$/ }).first()
+        page.locator('p').filter({ hasText: new RegExp('^' + TEST_COLUMN_NAME + '$') }).first()
       ).not.toBeVisible({ timeout: 10_000 });
     } else {
       // Free plan: Save stays disabled even after deleting — column management is read-only.
       // Close settings and verify the column remains (expected on this plan).
       await boardsPage.closeSettings();
       await expect(
-        page.locator('p').filter({ hasText: /^InProgressAuto$/ }).first()
+        page.locator('p').filter({ hasText: new RegExp('^' + TEST_COLUMN_NAME + '$') }).first()
       ).toBeVisible({ timeout: 5_000 });
     }
   });

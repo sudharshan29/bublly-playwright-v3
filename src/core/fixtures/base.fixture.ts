@@ -44,7 +44,7 @@ export const test = base.extend<Fixtures>({
         const ss = latest.sessionStorageData ?? {};
         page.evaluate((data: Record<string, string>) => {
           Object.entries(data).forEach(([k, v]) => sessionStorage.setItem(k, v));
-        }, ss).catch(() => {});
+        }, ss).catch((e: Error) => console.warn('[auth] session re-injection failed:', e.message));
       }
     });
 

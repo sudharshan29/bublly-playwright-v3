@@ -4,8 +4,8 @@ export function contactsLocators(page: Page) {
   return {
     // ── Sidebar ───────────────────────────────────────────────────────────
     pageHeading:        page.locator('p').filter({ hasText: /^Contacts$/ }).first(),
-    sidebarAll:         page.locator('div').filter({ hasText: /^All/ }).and(page.locator('[cursor=pointer], [class*="cursor-pointer"]')).first(),
-    sidebarUsers:       page.locator('div').filter({ hasText: /^Users/ }).and(page.locator('[cursor=pointer], [class*="cursor-pointer"]')).first(),
+    sidebarAll:         page.locator('div').filter({ hasText: /^All/ }).and(page.locator('[class*="cursor-pointer"]')).first(),
+    sidebarUsers:       page.locator('div').filter({ hasText: /^Users/ }).and(page.locator('[class*="cursor-pointer"]')).first(),
     sidebarGuests:      page.locator('div').filter({ hasText: /^Guests/ }).first(),
     sidebarUnsubscribed:page.locator('div').filter({ hasText: /^Unsubscribed/ }).first(),
     sidebarBlocked:     page.locator('div').filter({ hasText: /^Blocked/ }).first(),

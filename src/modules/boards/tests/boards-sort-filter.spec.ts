@@ -84,9 +84,11 @@ test.describe('Boards sort and filter — TC_BRD_016–025 @smoke', () => {
     await boardsPage.loc.filterTitleInput.fill('zzz_no_match_xyz_99999');
     await boardsPage.applyFilter();
 
-    // A non-matching filter should return 0 cards (or fewer than before)
-    const afterCount = await boardsPage.loc.ticketCards.count();
-    expect(afterCount).toBeLessThan(totalBefore);
+    // Poll until filter takes effect — QA server re-renders cards asynchronously after Apply
+    await expect.poll(
+      () => boardsPage.loc.ticketCards.count(),
+      { timeout: 15_000, intervals: [500, 1_000, 2_000] }
+    ).toBeLessThan(totalBefore);
   });
 
   test('TC_BRD_023 filtering by valid Ticket Title returns matching tickets', async ({ boardsPage }) => {

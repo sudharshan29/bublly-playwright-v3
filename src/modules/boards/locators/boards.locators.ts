@@ -6,6 +6,10 @@ export function boardsLocators(page: Page) {
     '[class*="fixed"][class*="inset-0"][class*="z-50"][class*="justify-end"]',
   );
 
+  // Icon toolbar — the parent of the .relative.w-7 search icon wrapper.
+  // Scoping sort/filter/settings to this container prevents false matches elsewhere on the page.
+  const iconBar = page.locator('.relative.w-7').first().locator('..');
+
   return {
     // ── Sidebar board links ───────────────────────────────────────────────
     bugBoardLink:         page.getByText('Bug',             { exact: true }).first(),
@@ -16,11 +20,12 @@ export function boardsLocators(page: Page) {
     boardHeading: page.locator('p').filter({ hasText: /^(Bug|FeatureRequests)$/ }).first(),
 
     // ── Header icons (search=1st, sort=2nd, filter=3rd, settings=4th) ─────
-    // .relative.w-7 is the search wrapper (expands to reveal input)
+    // All icons are scoped to iconBar (parent of the .relative.w-7 search wrapper) so that
+    // nth-child selectors only apply within the toolbar, not anywhere on the page.
     searchIcon:   page.locator('.relative.w-7 > svg').first(),
-    sortIcon:     page.locator('.flex > div:nth-child(2) > svg'),
-    filterIcon:   page.locator('div:nth-child(3) > svg'),
-    settingsIcon: page.locator('div:nth-child(4) > svg'),
+    sortIcon:     iconBar.locator('> div:nth-child(2) > svg').first(),
+    filterIcon:   iconBar.locator('> div:nth-child(3) > svg').first(),
+    settingsIcon: iconBar.locator('> div:nth-child(4) > svg').first(),
     searchInput:  page.locator('input[placeholder="Search here"]'),
     searchClearBtn: page.locator('span, button, div').filter({ hasText: '×' }).first(),
 

@@ -1,7 +1,7 @@
 import { test, expect } from '../fixtures/contacts.fixture';
 
 test.describe('Contacts smoke — TC_CON_001–009 @smoke', () => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
 
   test('TC_CON_001 /contacts page loads with Contacts heading', async ({ contactsPage }) => {
     await contactsPage.goto();

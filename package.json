@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test":            "playwright test",
+    "test":            "mkdir -p allure-results && playwright test",
     "test:headed":     "playwright test --headed",
     "test:debug":      "playwright test --debug",
     "test:ui":         "playwright test --ui",
@@ -13,6 +13,7 @@
     "test:boards":     "playwright test src/modules/boards",
     "test:auth":       "playwright test src/modules/auth",
     "seed":            "ts-node scripts/seed-fixtures.ts",
+    "seed:starter":    "ts-node scripts/seed-starter-inbox.ts",
     "cleanup":         "ts-node scripts/cleanup-stale.ts",
     "report":          "playwright show-report",
     "allure:generate": "npx allure generate ./allure-results --output allure-report",

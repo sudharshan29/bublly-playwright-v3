@@ -1,6 +1,8 @@
 import { test, expect } from '../fixtures/contacts.fixture';
+import fixtureData        from '../../../../.fixtures/fixture-data.json';
 
-const FIXTURE_CONTACT_ID = '7575';
+const FIXTURE_CONTACT_ID    = fixtureData.contacts.fixtureContactId;
+const FIXTURE_CONTACT_EMAIL = fixtureData.contacts.fixtureContactEmail;
 
 test.describe('Contacts actions — TC_CON_026–035 @smoke', () => {
   test.setTimeout(90_000);
@@ -67,8 +69,8 @@ test.describe('Contacts actions — TC_CON_026–035 @smoke', () => {
   test('TC_CON_032 modal pre-fills the contact email in the To field', async ({ contactsPage }) => {
     await contactsPage.gotoContact(FIXTURE_CONTACT_ID);
     await contactsPage.openNewConversation();
-    // The "To:" chip shows the contact's email
-    await expect(contactsPage.page.getByText('qa-conv-1781756630557@mailinator.com'))
+    // Email value is sourced from fixture-data.json — update there if the fixture contact changes
+    await expect(contactsPage.page.getByText(FIXTURE_CONTACT_EMAIL))
       .toBeVisible({ timeout: 10_000 });
     await contactsPage.closeNewConversation();
   });

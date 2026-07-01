@@ -128,6 +128,17 @@ test.describe('Inbox conversation detail — TC_INB_022-032 @smoke', () => {
     expect(inThread || composerCleared).toBe(true);
   });
 
+  // TC_INB_074 deliberately placed here — it searches for the reply sent by TC_INB_040.
+  // With workers:1 tests execute in declaration order, guaranteeing TC_INB_040 runs first.
+  test('TC_INB_074 search by specific reply text returns matching conversation @smoke', async ({ page, inboxPage }) => {
+    await inboxPage.goto();
+    await inboxPage.search('TC_INB_040 automated reply test');
+    await page.locator('[class*="receiver-bg"]').first()
+      .waitFor({ state: 'visible', timeout: 20_000 }).catch(() => {});
+    const count = await inboxPage.getConversationCount();
+    expect(count).toBeGreaterThanOrEqual(1);
+  });
+
   // ── Detail panel interactions ────────────────────────────────────────────────
 
   test('TC_INB_042 Assignee dropdown opens and shows options', async ({ page, inboxPage }) => {

@@ -40,10 +40,11 @@ test.describe('Boards search — TC_BRD_042–045 @smoke', () => {
     await boardsPage.page.waitForTimeout(1_000);
     await boardsPage.clearSearch();
 
-    // Wait for cards to reload
-    await boardsPage.page.waitForTimeout(1_000);
-    const restoredCount = await boardsPage.loc.ticketCards.count();
-    expect(restoredCount).toBeGreaterThanOrEqual(initialCount);
+    // Poll until the board re-renders all cards after clearing search
+    await expect.poll(
+      () => boardsPage.loc.ticketCards.count(),
+      { timeout: 15_000, intervals: [500, 1_000, 2_000] }
+    ).toBeGreaterThanOrEqual(initialCount);
   });
 
   test('TC_BRD_062 search by exact FRE ticket ID returns that specific card', async ({ boardsPage, page }) => {

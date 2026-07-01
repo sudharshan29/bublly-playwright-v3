@@ -6,7 +6,7 @@ test.describe.configure({ mode: 'serial' });
 let sharedTitle = '';
 
 test.describe('Boards ticket create and verify — TC_BRD_056-057 @smoke', () => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
 
   test('TC_BRD_056 created ticket appears as a card with the exact title on the board', async ({ boardsPage, page }) => {
     await boardsPage.gotoBugBoard();
@@ -28,14 +28,22 @@ test.describe('Boards ticket create and verify — TC_BRD_056-057 @smoke', () =>
 
     await boardsPage.loc.addBugModalTitle
       .waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {});
-    await page.waitForTimeout(2_000);
+
+    // Reload the board — forces a fresh fetch from the server so the newly created
+    // ticket is included in both the column and search index before we query it.
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await boardsPage.loc.openColumnLabel.waitFor({ state: 'visible', timeout: 30_000 });
 
     // Use board search to locate the freshly created card by its unique title
     await boardsPage.search(uniqueTitle);
-    await page.waitForTimeout(1_500);
+    await page.waitForTimeout(2_000);
 
     const card = page.getByRole('button').filter({ hasText: uniqueTitle });
-    await expect(card.first()).toBeVisible({ timeout: 15_000 });
+    // Poll — QA server may take several seconds to index newly created tickets
+    await expect.poll(
+      () => card.first().isVisible(),
+      { timeout: 60_000, intervals: [2_000, 3_000, 5_000] }
+    ).toBeTruthy();
   });
 
   test('TC_BRD_057 clicking the newly created ticket card opens its detail panel', async ({ boardsPage, page }) => {

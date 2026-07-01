@@ -13,6 +13,8 @@ export class InboxPage {
   readonly setUnreadBtn:   Locator;
   readonly copyLinkBtn:    Locator;
   readonly priorityCombo:  Locator;
+  readonly detailsTab:     Locator;
+  readonly noteTextbox:    Locator;
   private loc: ReturnType<typeof inboxLocators>;
 
   constructor(private page: Page) {
@@ -25,6 +27,8 @@ export class InboxPage {
     this.setUnreadBtn   = this.loc.setUnreadBtn;
     this.copyLinkBtn    = this.loc.copyLinkBtn;
     this.priorityCombo  = this.loc.priorityCombo;
+    this.detailsTab     = this.loc.detailsTab;
+    this.noteTextbox    = this.loc.noteTextbox;
   }
 
   async goto(): Promise<void> {
@@ -176,25 +180,20 @@ export class InboxPage {
     // Archive Ticket is in the More Options menu and acts immediately (no confirmation)
     // It is a toggle: clicking again on an archived ticket restores it to open
     await this.loc.moreOptionsBtn.click();
-    await this.loc.archiveTicketMenuItem.waitFor({ state: 'visible', timeout: TIMEOUTS.action });
+    const appeared = await this.loc.archiveTicketMenuItem
+      .waitFor({ state: 'visible', timeout: 20_000 })
+      .then(() => true).catch(() => false);
+
+    if (!appeared) {
+      // Menu didn't open — Escape clears any partial state, then retry the click
+      await this.page.keyboard.press('Escape');
+      await this.page.waitForTimeout(500);
+      await this.loc.moreOptionsBtn.click();
+      await this.loc.archiveTicketMenuItem.waitFor({ state: 'visible', timeout: 20_000 });
+    }
+
     await this.loc.archiveTicketMenuItem.click();
     await this.page.waitForTimeout(2_000);
-  }
-
-  async openConversation(): Promise<void> {
-    // Archive Ticket is a toggle — clicking it on an archived ticket restores it to open
-    await this.archiveConversation();
-  }
-
-  async sendReply(text: string): Promise<void> {
-    const composer = this.loc.messageInput;
-    await composer.waitFor({ state: 'visible', timeout: TIMEOUTS.action });
-    await composer.fill(text);
-    // Try submit via Ctrl+Enter (common in ProseMirror editors) first,
-    // then fall back to clicking the send button
-    await this.page.keyboard.press('Control+Enter');
-    // Wait briefly for either the message to appear or to confirm send
-    await this.page.waitForTimeout(1_500);
   }
 
   async waitForAiResponse(): Promise<string> {

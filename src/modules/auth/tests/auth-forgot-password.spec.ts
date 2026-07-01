@@ -3,6 +3,9 @@ import { test, expect } from '@playwright/test';
 import { AuthPage }     from '../pages/auth.page';
 import { env }          from '../../../../config/environment';
 
+// Opt out of the global free-user storageState — these tests need a clean unauthenticated context.
+test.use({ storageState: undefined });
+
 // File-level serial: all tests in this file run on one worker.
 // Both describe blocks trigger real email sends to the QA account — running them
 // concurrently on separate workers causes QA server rate-limiting and page-load timeouts.

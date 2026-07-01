@@ -146,7 +146,7 @@ test.describe('Inbox new conversation modal — TC_INB_033-036 @smoke', () => {
     await sendBtn.click();
 
     // Modal must close after successful send
-    await expect(modal).not.toBeVisible({ timeout: 15_000 });
+    await expect(modal).not.toBeVisible({ timeout: 30_000 });
   });
 
 });

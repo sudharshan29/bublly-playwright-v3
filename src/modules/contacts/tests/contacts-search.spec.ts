@@ -32,8 +32,8 @@ test.describe('Contacts search — TC_CON_010–014 @smoke', () => {
     const totalBefore = await contactsPage.getTotalCount();
     await contactsPage.search('QA Conv');
     await contactsPage.clearSearch();
-    const totalAfter = await contactsPage.getTotalCount();
-    expect(totalAfter).toBe(totalBefore);
+    // Poll until API returns the full unfiltered count — pagination text lags after clear
+    await expect.poll(() => contactsPage.getTotalCount(), { timeout: 10_000 }).toBe(totalBefore);
   });
 
   test('TC_CON_014 searching a non-existent term returns 0 results', async ({ contactsPage }) => {

@@ -56,6 +56,16 @@ export function dashboardLocators(page: Page) {
     .locator('..')
     .locator('[class*="cursor-pointer"]').last();
 
+  // "Mark as all read" button — only visible when there are unread notifications
+  const markAllReadBtn = page.getByRole('button', { name: 'Mark as all read' });
+
+  // Individual notification items — cursor-pointer divs inside the panel that contain text paragraphs
+  const notificationItems = page.getByRole('heading', { name: 'Notification' })
+    .locator('xpath=../../..')
+    .locator('[class*="cursor-pointer"]')
+    .filter({ has: page.locator('p') })
+    .filter({ hasNot: page.getByRole('button') });
+
   // ── Global Search (Command Palette) ──────────────────────────────────────
   // Dialog has role="dialog" but no accessible name; input is plain text input (not combobox)
   const searchModal       = page.getByRole('dialog');
@@ -105,6 +115,8 @@ export function dashboardLocators(page: Page) {
     notifTabUnseen,
     notifEmptyState,
     notifCloseBtn,
+    markAllReadBtn,
+    notificationItems,
     searchModal,
     searchModalInput,
     searchIsOpen,

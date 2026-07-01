@@ -1,8 +1,9 @@
 import { test, expect } from '../fixtures/contacts.fixture';
+import fixtureData from '../../../../.fixtures/fixture-data.json';
 
-// Uses a known stable contact (id=7575) created during inbox tests.
+// Uses a known stable contact created during inbox tests.
 // This contact has a conversation, session history, and activities.
-const FIXTURE_CONTACT_ID = '7575';
+const FIXTURE_CONTACT_ID = fixtureData.contacts.fixtureContactId;
 
 test.describe('Contacts detail page — TC_CON_019–025 @smoke', () => {
   test.setTimeout(90_000);

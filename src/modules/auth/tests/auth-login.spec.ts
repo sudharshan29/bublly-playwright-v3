@@ -4,6 +4,11 @@ import { test, expect } from '@playwright/test';
 import { AuthPage }     from '../pages/auth.page';
 import { env }          from '../../../../config/environment';
 
+// Opt out of the global storageState set in playwright.config.ts.
+// Without this, Playwright injects the authenticated free-user session into every context,
+// which can cause the app to skip the login page and redirect to /dashboard.
+test.use({ storageState: undefined });
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Existing smoke — Step 1 basic render + auth guards
 // ─────────────────────────────────────────────────────────────────────────────

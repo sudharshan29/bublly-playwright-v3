@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 import { AuthPage }     from '../pages/auth.page';
 import { env }          from '../../../../config/environment';
 
+// Signup tests run unauthenticated — opt out of the global free-user storageState.
+test.use({ storageState: undefined });
+
 // MANDATORY — never remove
 test.describe.configure({ mode: 'serial' });
 

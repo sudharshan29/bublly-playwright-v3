@@ -10,10 +10,11 @@ export class AuthPage {
   }
 
   async gotoLogin(): Promise<void> {
-    // Reload-retry: QA server can stall the initial load; a retry clears the stall
+    // Short first-try (30s) leaves budget for the catch retry within any 90s test timeout.
+    // Catch uses the full 60s — if QA server is slow, the retry has more time to succeed.
     try {
-      await this.page.goto(env.baseUrl + '/login', { waitUntil: 'domcontentloaded', timeout: 60_000 });
-      await this.loc.emailInput.waitFor({ state: 'visible', timeout: 30_000 });
+      await this.page.goto(env.baseUrl + '/login', { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await this.loc.emailInput.waitFor({ state: 'visible', timeout: 15_000 });
     } catch {
       await this.page.goto(env.baseUrl + '/login', { waitUntil: 'domcontentloaded', timeout: 60_000 });
       await this.loc.emailInput.waitFor({ state: 'visible', timeout: 30_000 });
