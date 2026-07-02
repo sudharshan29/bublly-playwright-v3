@@ -31,10 +31,10 @@ test.describe('E2E — New Conversation → Dashboard Live Feed @e2e', () => {
         .waitFor({ state: 'visible', timeout: 30_000 });
     }
 
-    // Step 2: click New Conversation button
-    const newConvBtn = page.getByRole('button', { name: /new conversation|compose|new ticket/i }).first()
-      .or(page.locator('img[alt="compose"]').locator('..'));
-    const hasNewConv = await newConvBtn.isVisible({ timeout: 8_000 }).catch(() => false);
+    // Step 2: click New Conversation button — has a stable id="tour-step-new-conversation"
+    const newConvBtn = page.locator('#tour-step-new-conversation')
+      .or(page.getByRole('button', { name: /new conversation|compose|new ticket/i }).first());
+    const hasNewConv = await newConvBtn.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
     if (!hasNewConv) {
       test.skip(true, 'New Conversation button not found in inbox');
       return;

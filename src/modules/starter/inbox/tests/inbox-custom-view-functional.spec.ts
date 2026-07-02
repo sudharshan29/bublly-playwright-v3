@@ -16,13 +16,11 @@ test.describe('Inbox Custom View — functional — TC_CUV_005–007 @smoke', ()
   test('TC_CUV_006 Custom View add button opens Add Filter View modal', async ({ page }) => {
     const customView = page.getByText('Custom View', { exact: true });
     await expect(customView).toBeVisible({ timeout: 10_000 });
-    await customView.hover();
-    await page.waitForTimeout(500);
-    const addIcon = page.locator('img[alt="add"]').first()
-      .or(page.getByRole('img', { name: 'add' }).first());
-    const isVisible = await addIcon.isVisible().catch(() => false);
+    // "Add new" button is always in DOM next to Custom View heading
+    const addIcon = page.locator('p').filter({ hasText: /^Custom View$/ }).locator('..').locator('.menu-section-add-trigger');
+    const isVisible = await addIcon.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
     if (!isVisible) {
-      test.skip(true, 'Add icon not visible — hover-only or different locator needed');
+      test.skip(true, 'Add new button not visible next to Custom View — may be upgrade-gated');
       return;
     }
     await addIcon.click();
@@ -34,13 +32,11 @@ test.describe('Inbox Custom View — functional — TC_CUV_005–007 @smoke', ()
 
   test('TC_CUV_007 Custom View modal has View Name required field', async ({ page }) => {
     const customView = page.getByText('Custom View', { exact: true });
-    await customView.hover();
-    await page.waitForTimeout(500);
-    const addIcon = page.locator('img[alt="add"]').first()
-      .or(page.getByRole('img', { name: 'add' }).first());
-    const isVisible = await addIcon.isVisible().catch(() => false);
+    await expect(customView).toBeVisible({ timeout: 10_000 });
+    const addIcon = page.locator('p').filter({ hasText: /^Custom View$/ }).locator('..').locator('.menu-section-add-trigger');
+    const isVisible = await addIcon.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
     if (!isVisible) {
-      test.skip(true, 'Add icon not visible on hover');
+      test.skip(true, 'Add new button not visible next to Custom View');
       return;
     }
     await addIcon.click();
@@ -54,13 +50,11 @@ test.describe('Inbox Custom View — functional — TC_CUV_005–007 @smoke', ()
 
   test('TC_CUV_008 Custom View modal shows filter options', async ({ page }) => {
     const customView = page.getByText('Custom View', { exact: true });
-    await customView.hover();
-    await page.waitForTimeout(500);
-    const addIcon = page.locator('img[alt="add"]').first()
-      .or(page.getByRole('img', { name: 'add' }).first());
-    const isVisible = await addIcon.isVisible().catch(() => false);
+    await expect(customView).toBeVisible({ timeout: 10_000 });
+    const addIcon = page.locator('p').filter({ hasText: /^Custom View$/ }).locator('..').locator('.menu-section-add-trigger');
+    const isVisible = await addIcon.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
     if (!isVisible) {
-      test.skip(true, 'Add icon not visible on hover');
+      test.skip(true, 'Add new button not visible next to Custom View');
       return;
     }
     await addIcon.click();

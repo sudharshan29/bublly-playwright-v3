@@ -1,33 +1,41 @@
 import { test, expect } from '@playwright/test';
 import { env }          from '../../../../config/environment';
 
-const FORGOT_URL = `${env.baseUrl}/forgot-password`;
-const TEST_EMAIL = env.freeUser.email;
+const BASE_URL    = env.baseUrl;
+const TEST_EMAIL  = env.freeUser.email;
 
 test.describe('Auth — OTP error states — TC_LGN_060-063 @smoke', () => {
   test.setTimeout(90_000);
   test.use({ storageState: { cookies: [], origins: [] } }); // anonymous context
+  // Serial: each test triggers a real OTP email send — parallel runs cause rate-limiting
+  test.describe.configure({ mode: 'serial' });
 
   async function goToOtpPage(page: import('@playwright/test').Page) {
-    await page.goto(`${FORGOT_URL}?step=2&email=${encodeURIComponent(TEST_EMAIL)}`, {
+    // Navigate with email pre-filled so the "Forgot your password" button is enabled immediately
+    await page.goto(`${BASE_URL}/forget-password?email=${encodeURIComponent(TEST_EMAIL)}`, {
       waitUntil: 'domcontentloaded',
       timeout:   30_000,
     });
-    // Wait for OTP inputs to appear
-    const otpInput = page.locator('input[maxlength="1"], input[type="number"][maxlength="1"]').first();
+    // The submit button on this page is labelled "Forgot your password"
+    const sendBtn = page.getByRole('button', { name: /Forgot your password/i });
+    const hasBtn  = await sendBtn.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    if (!hasBtn) return false;
+    await sendBtn.click();
+    // After clicking, the app redirects to /otpValidation
     try {
-      await otpInput.waitFor({ state: 'visible', timeout: 15_000 });
-      return true;
+      await page.waitForURL(/otpValidation/, { timeout: 20_000 });
     } catch {
       return false;
     }
+    const heading = page.getByRole('heading', { name: /Enter Verification code/i });
+    return await heading.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
   }
 
   test('TC_LGN_060 OTP page shows error when submitting all-zero code', async ({ page }) => {
     const onOtpPage = await goToOtpPage(page);
     if (!onOtpPage) { test.skip(true, 'OTP page not reachable via URL param'); return; }
-    // Fill all 6 OTP digits with zeros
-    const otpInputs = page.locator('input[maxlength="1"]');
+    // Fill all 6 OTP digits with zeros — inputs have ARIA labels "Digit 1 of 6" … "Digit 6 of 6"
+    const otpInputs = page.getByRole('textbox', { name: /Digit \d of 6/i });
     const count = await otpInputs.count();
     if (count < 6) { test.skip(true, `Expected 6 OTP inputs, found ${count}`); return; }
     for (let i = 0; i < count; i++) {
@@ -78,10 +86,10 @@ test.describe('Auth — OTP error states — TC_LGN_060-063 @smoke', () => {
   test('TC_LGN_062 OTP page shows 6 input fields and only accepts numeric input', async ({ page }) => {
     const onOtpPage = await goToOtpPage(page);
     if (!onOtpPage) { test.skip(true, 'OTP page not reachable via URL param'); return; }
-    const otpInputs = page.locator('input[maxlength="1"]');
+    const otpInputs = page.getByRole('textbox', { name: /Digit \d of 6/i });
     const count = await otpInputs.count();
     expect(count).toBeGreaterThanOrEqual(6);
-    // Try typing a letter — should be rejected
+    // Try typing a letter — should be rejected (inputs only accept digits)
     await otpInputs.first().fill('a');
     const val = await otpInputs.first().inputValue();
     expect(val).toBe(''); // Letter should be filtered out
@@ -90,14 +98,14 @@ test.describe('Auth — OTP error states — TC_LGN_060-063 @smoke', () => {
   test('TC_LGN_063 OTP page has Go Back link that returns to Step 1', async ({ page }) => {
     const onOtpPage = await goToOtpPage(page);
     if (!onOtpPage) { test.skip(true, 'OTP page not reachable via URL param'); return; }
-    const backLink = page.getByText(/wrong email|go back|back/i).first()
-      .or(page.getByRole('link', { name: /back|step 1/i }).first());
+    const backLink = page.getByRole('link', { name: 'Go back' }).first()
+      .or(page.getByText(/wrong email|go back/i).first());
     const hasBack = await backLink.isVisible({ timeout: 8_000 }).catch(() => false);
     if (!hasBack) { test.skip(true, 'Go Back link not found on OTP page'); return; }
     await backLink.click();
-    await page.waitForTimeout(1_000);
+    await page.waitForURL(/login.*email=|forget-password/, { timeout: 15_000 }).catch(() => {});
     const url = page.url();
-    // Should navigate to step 1 or back to email input
-    expect(url).toMatch(/step=1|forgot-password|reset/i);
+    // "Go back" navigates to /login?email=... (step 2 with email param)
+    expect(url).toMatch(/login|forget-password/);
   });
 });

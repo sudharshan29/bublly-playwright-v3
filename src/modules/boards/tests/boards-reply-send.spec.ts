@@ -33,10 +33,9 @@ test.describe('Boards — Reply send — TC_BRD_REP_001-002 @smoke', () => {
     await boardsPage.gotoBugBoard();
     await boardsPage.openFirstTicketCard();
     await expect(boardsPage.loc.detailPanel).toBeVisible({ timeout: 15_000 });
-    // Thread area should exist (may be empty for new tickets)
-    const thread = page.locator('[class*="flex-col-reverse"], [class*="messages"]').first()
-      .or(page.locator('[class*="scroll-box"]').first());
-    // At minimum the thread container should render
+    // Thread scrollable area uses class "overflow-y-auto" inside the panel
+    const thread = boardsPage.loc.detailPanel.locator('[class*="overflow-y-auto"]').first()
+      .or(boardsPage.loc.detailPanel.locator('[class*="flex-grow"]').first());
     const hasThread = await thread.isVisible({ timeout: 8_000 }).catch(() => false);
     if (!hasThread) {
       test.skip(true, 'Thread area not found in board detail panel');

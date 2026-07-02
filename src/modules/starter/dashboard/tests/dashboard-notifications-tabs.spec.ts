@@ -69,16 +69,15 @@ test.describe('Starter — Dashboard Notifications Tabs — TC_ADM_DSH_007-010 @
 
   test('TC_ADM_DSH_010 notification panel closes when clicking outside', async ({ page }) => {
     await openNotificationPanel(page);
-    // Panel should be open
-    const panelEl = page.locator('[role="dialog"], [class*="notification-panel"], [class*="notification-list"]').first();
-    const panelOpen = await panelEl.isVisible({ timeout: 5_000 }).catch(() => false);
-    if (!panelOpen) { test.skip(true, 'Notification panel not found'); return; }
-    // Click outside the panel
-    await page.locator('h1, main').first().click({ position: { x: 10, y: 10 } }).catch(() => {
-      page.keyboard.press('Escape').catch(() => {});
-    });
-    await page.waitForTimeout(600);
-    const panelStillOpen = await panelEl.isVisible({ timeout: 2_000 }).catch(() => false);
+    // The notification panel is NOT a dialog — identify it by the heading role
+    const panelHeading = page.getByRole('heading', { name: 'Notification' })
+      .or(page.getByRole('heading', { name: /notification/i }).first());
+    const panelOpen = await panelHeading.isVisible({ timeout: 5_000 }).catch(() => false);
+    if (!panelOpen) { test.skip(true, 'Notification panel not found — heading not visible'); return; }
+    // Click the main content area (top-left, outside the panel) to dismiss
+    await page.mouse.click(10, 10);
+    await page.waitForTimeout(800);
+    const panelStillOpen = await panelHeading.isVisible({ timeout: 2_000 }).catch(() => false);
     expect(panelStillOpen).toBe(false);
   });
 });

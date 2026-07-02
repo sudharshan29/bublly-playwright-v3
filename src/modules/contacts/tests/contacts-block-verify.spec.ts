@@ -37,8 +37,8 @@ test.describe('Contacts — block and verify — TC_CON_BLK_001-004 @smoke', () 
     await row.click();
 
     // Capture contact ID from URL so TC_CON_BLK_004 can navigate back directly
-    await page.waitForURL(/\/contacts\/users\/\d+/, { timeout: 10_000 });
-    const match = page.url().match(/\/contacts\/users\/(\d+)/);
+    await page.waitForURL(/\/contacts\/users\//, { timeout: 10_000 });
+    const match = page.url().match(/\/contacts\/users\/([^/?&#]+)/);
     contactId = match?.[1] ?? '';
 
     // Wait for detail page to fully settle before looking for Block action

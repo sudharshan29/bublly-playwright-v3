@@ -23,14 +23,11 @@ test.describe('Inbox Groups — functional — TC_GRP_005–013 @smoke', () => {
   test('TC_GRP_006 clicking Groups add button opens Add Filter View modal', async ({ page }) => {
     const groups = page.getByText('Groups', { exact: true });
     await expect(groups).toBeVisible({ timeout: 10_000 });
-    await groups.hover();
-    await page.waitForTimeout(500);
-    // Try clicking the add icon that appears on hover
-    const addIcon = page.locator('img[alt="add"]').first()
-      .or(page.getByRole('img', { name: 'add' }).first());
-    const isVisible = await addIcon.isVisible().catch(() => false);
+    // "Add new" button is always in DOM (not hover-only) — find it next to Groups heading
+    const addIcon = page.locator('p').filter({ hasText: /^Groups$/ }).locator('..').getByText('Add new').first();
+    const isVisible = await addIcon.isVisible({ timeout: 5_000 }).catch(() => false);
     if (!isVisible) {
-      test.skip(true, 'Add icon not visible — may require specific hover target');
+      test.skip(true, 'Add new button not visible next to Groups — may be upgrade-gated');
       return;
     }
     await addIcon.click();
@@ -43,13 +40,11 @@ test.describe('Inbox Groups — functional — TC_GRP_005–013 @smoke', () => {
 
   test('TC_GRP_007 Groups modal has Group Name field when opened', async ({ page }) => {
     const groups = page.getByText('Groups', { exact: true });
-    await groups.hover();
-    await page.waitForTimeout(500);
-    const addIcon = page.locator('img[alt="add"]').first()
-      .or(page.getByRole('img', { name: 'add' }).first());
-    const isVisible = await addIcon.isVisible().catch(() => false);
+    await expect(groups).toBeVisible({ timeout: 10_000 });
+    const addIcon = page.locator('p').filter({ hasText: /^Groups$/ }).locator('..').getByText('Add new').first();
+    const isVisible = await addIcon.isVisible({ timeout: 5_000 }).catch(() => false);
     if (!isVisible) {
-      test.skip(true, 'Add icon not visible on hover');
+      test.skip(true, 'Add new button not visible next to Groups');
       return;
     }
     await addIcon.click();
@@ -63,13 +58,11 @@ test.describe('Inbox Groups — functional — TC_GRP_005–013 @smoke', () => {
 
   test('TC_GRP_008 Groups modal shows assignment mode options', async ({ page }) => {
     const groups = page.getByText('Groups', { exact: true });
-    await groups.hover();
-    await page.waitForTimeout(500);
-    const addIcon = page.locator('img[alt="add"]').first()
-      .or(page.getByRole('img', { name: 'add' }).first());
-    const isVisible = await addIcon.isVisible().catch(() => false);
+    await expect(groups).toBeVisible({ timeout: 10_000 });
+    const addIcon = page.locator('p').filter({ hasText: /^Groups$/ }).locator('..').getByText('Add new').first();
+    const isVisible = await addIcon.isVisible({ timeout: 5_000 }).catch(() => false);
     if (!isVisible) {
-      test.skip(true, 'Add icon not visible on hover');
+      test.skip(true, 'Add new button not visible next to Groups');
       return;
     }
     await addIcon.click();
