@@ -3,10 +3,12 @@ import { widgetLocators } from '../locators/widget.locators';
 import { env }            from '../../../../config/environment';
 
 export class WidgetPage {
-  private loc: ReturnType<typeof widgetLocators>;
+  loc: ReturnType<typeof widgetLocators>;
+  page: Page;
 
-  constructor(private page: Page) {
-    this.loc = widgetLocators(page);
+  constructor(page: Page) {
+    this.page = page;
+    this.loc  = widgetLocators(page);
   }
 
   async goto(): Promise<void> {
@@ -46,5 +48,17 @@ export class WidgetPage {
     await this.loc.chatInput.fill(text);
     await this.loc.chatInput.press('Enter');
     await this.page.waitForTimeout(1_500);
+  }
+
+  // Alias — used by close/reopen tests that want to land on widget without waiting for greeting
+  async gotoWidget(): Promise<void> {
+    try {
+      await this.page.goto(env.helpCenterUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await this.page.locator('#bublly-widget').waitFor({ state: 'attached', timeout: 30_000 });
+    } catch {
+      await this.page.goto(env.helpCenterUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await this.page.locator('#bublly-widget').waitFor({ state: 'attached', timeout: 30_000 });
+    }
+    await this.page.waitForTimeout(1_000);
   }
 }

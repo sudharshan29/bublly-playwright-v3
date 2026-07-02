@@ -26,5 +26,9 @@ export function widgetLocators(page: Page) {
     sendBtn:              frame.getByRole('button', { name: 'Send message' }),
     botGreeting:          frame.getByText(/happy to help/i).first(),
     poweredByBublly:      frame.getByText(/powered by bublly/i).first(),
+
+    // Close / reopen
+    closeWidgetBtn:       frame.getByRole('button', { name: /close/i }).first(),
+    chatWindowContainer:  frame.locator('[class*="widget"], [class*="chat-window"], [class*="container"]').first(),
   };
 }

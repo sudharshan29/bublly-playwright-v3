@@ -6,6 +6,7 @@ dotenv.config({ path: '.env.qa' });
 
 export default defineConfig({
   testDir: './src',
+  testIgnore: ['**/*-restore-fixture.spec.ts'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 1,
