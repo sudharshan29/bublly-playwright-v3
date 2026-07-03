@@ -27,11 +27,16 @@ test.describe('Inbox Settings — functional — TC_IST_007–012 @smoke', () =>
   });
 
   test('TC_IST_009 settings panel shows Categories or Columns or Statuses section', async ({ page }) => {
-    // Wait up to 10s for any of these section labels to appear — panel loads asynchronously
-    const sectionEl = page.getByText('Columns', { exact: true }).first()
-      .or(page.getByText('Categories', { exact: true }).first())
-      .or(page.getByText('Statuses',   { exact: true }).first())
-      .or(page.getByText('Stages',     { exact: true }).first());
+    // Wait up to 10s for any of these section labels to appear — panel loads asynchronously.
+    // NOTE: .first() must be applied to the combined .or() locator, not to each branch —
+    // both "Categories" and "Columns" section headings are visible simultaneously in this
+    // panel, so firsting each branch individually still yields two visible matches and
+    // trips Playwright's strict-mode check inside .waitFor().
+    const sectionEl = page.getByText('Columns', { exact: true })
+      .or(page.getByText('Categories', { exact: true }))
+      .or(page.getByText('Statuses',   { exact: true }))
+      .or(page.getByText('Stages',     { exact: true }))
+      .first();
     const hasSection = await sectionEl.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
     if (!hasSection) {
       test.skip(true, 'No categories/columns section found in settings panel DOM');

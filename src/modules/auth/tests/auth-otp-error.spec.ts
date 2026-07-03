@@ -103,7 +103,11 @@ test.describe('Auth — OTP error states — TC_LGN_060-063 @smoke', () => {
     const hasBack = await backLink.isVisible({ timeout: 8_000 }).catch(() => false);
     if (!hasBack) { test.skip(true, 'Go Back link not found on OTP page'); return; }
     await backLink.click();
-    await page.waitForURL(/login|forget-password|\//, { timeout: 10_000 }).catch(() => {});
+    // The "Go back" link on this QA build routes to /signup (not /login or
+    // /forget-password), so wait for any real navigation away from the OTP
+    // page rather than a regex that (via a bare "/" alternative) matches the
+    // otpValidation URL itself and resolves before navigation completes.
+    await page.waitForURL((current) => !current.pathname.includes('otpValidation'), { timeout: 10_000 }).catch(() => {});
     const url = page.url();
     // If back link didn't navigate away from OTP page, skip gracefully
     if (url.includes('otpValidation')) {

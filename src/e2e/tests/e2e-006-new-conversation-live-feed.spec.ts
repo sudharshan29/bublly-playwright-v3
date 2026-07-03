@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/e2e.fixture';
-import { env }          from '../../../config/environment';
+import { TIMEOUTS }     from '../../core/constants/timeouts';
 
 // TC_E2E_006 — New Conversation → Dashboard Live Feed
 //
@@ -18,94 +18,87 @@ test.describe('E2E — New Conversation → Dashboard Live Feed @e2e', () => {
     inboxPage,
     dashboardPage,
   }) => {
-    const INBOX_URL = `/project/${env.workspace.projectId}/inbox/${env.workspace.inboxId}`;
+    // Step 1: navigate to inbox and open the New Conversation modal.
+    // openNewConversationModal() clicks the stable id="tour-step-new-conversation"
+    // button and waits for the modal — confirmed working in
+    // src/modules/inbox/tests/inbox-new-conversation.spec.ts (TC_INB_033-036).
+    await inboxPage.goto();
+    await inboxPage.openNewConversationModal();
 
-    // Step 1: navigate to inbox
-    await page.goto(INBOX_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-    try {
-      await page.getByRole('combobox').filter({ hasText: /\d+/ }).first()
-        .waitFor({ state: 'visible', timeout: 30_000 });
-    } catch {
-      await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 });
-      await page.getByRole('combobox').filter({ hasText: /\d+/ }).first()
-        .waitFor({ state: 'visible', timeout: 30_000 });
-    }
-
-    // Step 2: click New Conversation button — has a stable id="tour-step-new-conversation"
-    const newConvBtn = page.locator('#tour-step-new-conversation')
-      .or(page.getByRole('button', { name: /new conversation|compose|new ticket/i }).first());
-    const hasNewConv = await newConvBtn.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
-    if (!hasNewConv) {
-      test.skip(true, 'New Conversation button not found in inbox');
-      return;
-    }
-    await newConvBtn.click();
-    await page.waitForTimeout(800);
-
-    // Step 3: fill in new conversation form
-    const emailInput = page.locator('input[type="email"], input[placeholder*="email" i]').first()
-      .or(page.locator('input[placeholder*="contact" i]').first());
-    const hasEmail = await emailInput.isVisible({ timeout: 8_000 }).catch(() => false);
-    if (!hasEmail) {
-      test.skip(true, 'New conversation email/contact field not found');
-      return;
-    }
+    // Step 2: fill the recipient. The modal's recipient input has
+    // placeholder="Choose a receiver" — it is NOT input[type="email"] and its
+    // placeholder does not contain "email" or "contact" (that mismatch was the
+    // actual root cause of this test's prior skip). pressSequentially fires
+    // real keystrokes, which is required to trigger the autocomplete listener.
+    const modal = page.locator('[aria-modal="true"]').first();
+    const recipientInput = modal.locator('input[placeholder="Choose a receiver"]');
     const uniqueEmail = `e2e-006-${Date.now()}@mailinator.com`;
-    await emailInput.fill(uniqueEmail);
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(400);
+    await recipientInput.click();
+    await recipientInput.pressSequentially(uniqueEmail, { delay: 70 });
 
-    // Subject / title
-    const subjectInput = page.locator('input[placeholder*="subject" i], input[placeholder*="title" i]').first();
-    const hasSubject = await subjectInput.isVisible({ timeout: 5_000 }).catch(() => false);
-    if (hasSubject) {
-      await subjectInput.fill(`TC_E2E_006 Live Feed Test ${Date.now()}`);
-    }
+    // A freshly timestamped email never matches an existing contact, so
+    // "Create New Contact" is always the (only) autocomplete result.
+    const dropdown = modal.getByRole('list');
+    await dropdown.waitFor({ state: 'visible', timeout: TIMEOUTS.element });
+    await modal.getByRole('listitem').filter({ hasText: 'Create New Contact' }).click();
 
-    // Message body
-    const messageArea = page.locator('[role="textbox"][aria-multiline="true"]').first()
-      .or(page.locator('textarea').first());
-    const hasMessage = await messageArea.isVisible({ timeout: 5_000 }).catch(() => false);
-    if (hasMessage) {
-      await messageArea.fill('Automated E2E test: checking live feed visibility.');
-    }
+    // "Add new contact" dialog — Name is required before it can be submitted.
+    const addContactHeading = page.getByRole('heading', { name: 'Add new contact', exact: true });
+    await expect(addContactHeading).toBeVisible({ timeout: TIMEOUTS.element });
+    await page.getByPlaceholder('Enter Name').fill(`E2E 006 Test ${Date.now()}`);
+    await page.getByRole('button', { name: 'Add Contact', exact: true }).click();
+    // Must confirm the dialog closed before the backdrop clears and the main
+    // modal becomes interactive again.
+    await expect(addContactHeading).not.toBeVisible({ timeout: TIMEOUTS.element });
 
-    // Step 4: submit the form
-    const sendBtn = page.getByRole('button', { name: /send|create|submit/i }).first();
-    const hasSend = await sendBtn.isVisible({ timeout: 5_000 }).catch(() => false);
-    if (!hasSend) {
-      test.skip(true, 'Send/Create button not found in new conversation form');
-      return;
-    }
-    await sendBtn.click();
-    await page.waitForTimeout(3_000);
+    // Step 3: fill the message body. This is a ProseMirror contenteditable —
+    // it has no HTML placeholder, so it must be targeted via role=textbox.
+    const messageArea = modal.locator('[role="textbox"]').first();
+    await messageArea.waitFor({ state: 'visible', timeout: TIMEOUTS.element });
+    await messageArea.fill(`TC_E2E_006 automated live-feed check ${Date.now()}`);
 
-    // Step 5: navigate to dashboard and check live feed
-    await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 60_000 });
-    await page.waitForURL(/dashboard/, { timeout: 30_000 });
+    // Step 4: send, capturing the API response so we know the EXACT ticket
+    // code that was created (e.g. "FRE519_2126"). This lets Step 5 assert on
+    // an exact, unambiguous value instead of guessing at feed content.
+    const sendBtn = modal.getByRole('button', { name: 'Send', exact: true });
+    await sendBtn.waitFor({ state: 'visible', timeout: TIMEOUTS.element });
+    const [startConversationResponse] = await Promise.all([
+      page.waitForResponse(
+        (res) => res.url().includes('/customer/start-conversation') && res.ok(),
+        { timeout: TIMEOUTS.navigation },
+      ),
+      sendBtn.click(),
+    ]);
+    const responseBody = await startConversationResponse.json();
+    const ticketCode: string | undefined = responseBody?.data?.ticket?.ticket_code;
+    expect(ticketCode, 'start-conversation response must include a ticket_code').toMatch(/^FRE\d+_\d+$/);
 
-    const liveFeedSection = page.getByRole('heading', { name: /live feed/i }).first()
-      .or(page.getByText('Live Feed', { exact: true }).first());
-    try {
-      await liveFeedSection.waitFor({ state: 'visible', timeout: 20_000 });
-    } catch {
+    // Modal closes on successful send.
+    await expect(modal).not.toBeVisible({ timeout: TIMEOUTS.navigation });
+
+    // Step 5: the dashboard Live Feed must reflect the new conversation.
+    // The feed does not surface the new contact's name (the product renders
+    // "Untitled" for freshly created conversations — verified via live
+    // inspection), so the stable, exact signal is the ticket code returned by
+    // the create call. Real-time propagation can lag by a few seconds in QA,
+    // so poll with reloads within a bounded window rather than a single check.
+    await dashboardPage.goto();
+    await dashboardPage.loc.liveFeedItems.first().waitFor({ state: 'visible', timeout: TIMEOUTS.navigation });
+
+    const feedContainsTicket = async (): Promise<boolean> => {
+      const texts = await dashboardPage.loc.liveFeedItems.allTextContents();
+      return texts.some((t) => t.includes(ticketCode!));
+    };
+
+    let found = await feedContainsTicket();
+    const deadline = Date.now() + 30_000;
+    while (!found && Date.now() < deadline) {
+      await page.waitForTimeout(3_000);
       await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 });
-      await liveFeedSection.waitFor({ state: 'visible', timeout: 20_000 });
+      await dashboardPage.loc.liveFeedItems.first().waitFor({ state: 'visible', timeout: TIMEOUTS.element }).catch(() => {});
+      found = await feedContainsTicket();
     }
 
-    // Live feed should have at least one item
-    const feedItems = page.locator('[class*="feed-item"], [class*="activity"], [class*="ticket-row"]').first()
-      .or(page.locator('li').filter({ hasText: /@mailinator\.com|TC_E2E_006/ }).first());
-
-    // Allow up to 15s for real-time update to propagate
-    const feedLoaded = await feedItems.isVisible({ timeout: 15_000 }).catch(() => false);
-
-    // Live feed may show older items; just verify it renders without crash
-    const feedContainer = page.getByText('Live Feed', { exact: true }).locator('..').locator('..');
-    const containerText = await feedContainer.textContent({ timeout: 5_000 }).catch(() => '');
-
-    // Pass if live feed renders (real-time propagation time varies in QA)
-    const hasFeed = feedLoaded || (containerText ?? '').length > 10;
-    expect(hasFeed).toBe(true);
+    expect(found, `expected Live Feed to contain newly created ticket ${ticketCode}`).toBe(true);
   });
 });

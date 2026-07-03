@@ -18,8 +18,11 @@ test.describe('Inbox — Bulk actions — TC_INB_BULK_001-003 @smoke', () => {
     ]).catch(() => {});
   }
 
-  // Force-click the sr-only hidden checkbox — its visual <span> sibling intercepts pointer events,
-  // so we bypass with { force: true } to directly check the underlying input.
+  // The row's checkbox <input> is only mounted in the DOM while the row is hovered
+  // (it's not just CSS/sr-only-hidden — it doesn't exist at all until hover triggers
+  // the app to render it). It's also visually sr-only, with its checkmark <span>
+  // sibling sitting on top of it and intercepting pointer events, so once hovered we
+  // bypass that with { force: true } to click the underlying input directly.
   async function checkRow(row: import('@playwright/test').Locator) {
     await row.hover();
     await row.page().waitForTimeout(300);
@@ -49,23 +52,16 @@ test.describe('Inbox — Bulk actions — TC_INB_BULK_001-003 @smoke', () => {
     const rows = page.locator('[class~="group"][class*="receiver-bg"]');
     const count = await rows.count();
     if (count < 2) { test.skip(true, 'Need at least 2 conversations for bulk select'); return; }
-    const cbInDom = await rows.first().locator('input[type="checkbox"]').count()
-      .then(c => c > 0).catch(() => false);
-    if (!cbInDom) { test.skip(true, 'Checkbox not found — bulk actions not available'); return; }
+
     await checkRow(rows.first());
     await checkRow(rows.nth(1));
-    await page.waitForTimeout(800);
-    // Bulk toolbar should appear
-    const bulkBar = page.getByText(/selected/i).first()
-      .or(page.getByRole('button', { name: /assign|close all|bulk/i }).first());
-    const hasBulkBar = await bulkBar.isVisible({ timeout: 8_000 }).catch(() => false);
-    if (!hasBulkBar) {
-      // Deselect and gracefully skip — bulk toolbar may need different trigger in this env
-      await page.keyboard.press('Escape');
-      test.skip(true, 'Bulk action toolbar did not appear after selecting 2 rows');
-      return;
-    }
-    await expect(bulkBar).toBeVisible();
+
+    // Bulk toolbar renders a "N Item(s) Selected" counter — assert it for real, with a
+    // count of 2 to prove both rows actually registered as selected.
+    const bulkBar = page.getByText(/\d+\s*item\(s\)\s*selected/i).first();
+    await expect(bulkBar).toBeVisible({ timeout: 8_000 });
+    await expect(bulkBar).toContainText('2');
+
     await page.keyboard.press('Escape').catch(() => {});
   });
 
@@ -74,25 +70,21 @@ test.describe('Inbox — Bulk actions — TC_INB_BULK_001-003 @smoke', () => {
     const rows = page.locator('[class~="group"][class*="receiver-bg"]');
     const count = await rows.count();
     if (count < 2) { test.skip(true, 'Need at least 2 conversations'); return; }
-    const cbInDom = await rows.first().locator('input[type="checkbox"]').count()
-      .then(c => c > 0).catch(() => false);
-    if (!cbInDom) { test.skip(true, 'Checkbox not found'); return; }
+
     await checkRow(rows.first());
     await checkRow(rows.nth(1));
-    await page.waitForTimeout(800);
-    const bulkBar = page.getByText(/selected/i).first()
-      .or(page.getByRole('button', { name: /assign|close all|bulk/i }).first());
-    const hasBulkBar = await bulkBar.isVisible({ timeout: 8_000 }).catch(() => false);
-    if (!hasBulkBar) {
-      await page.keyboard.press('Escape');
-      test.skip(true, 'Bulk toolbar not visible — skipping action button check');
-      return;
-    }
+
+    const bulkBar = page.getByText(/\d+\s*item\(s\)\s*selected/i).first();
+    await expect(bulkBar).toBeVisible({ timeout: 8_000 });
+
+    // On this free-plan account the toolbar exposes Archive/Close actions; Assign may be
+    // gated behind a paid plan, so assert at least one bulk action button is present.
     const assignBtn = page.getByRole('button', { name: /assign/i }).first();
     const closeBtn  = page.getByRole('button', { name: /close/i }).first();
     const hasAssign = await assignBtn.isVisible({ timeout: 5_000 }).catch(() => false);
     const hasClose  = await closeBtn.isVisible({ timeout: 3_000 }).catch(() => false);
     expect(hasAssign || hasClose).toBe(true);
-    await page.keyboard.press('Escape');
+
+    await page.keyboard.press('Escape').catch(() => {});
   });
 });

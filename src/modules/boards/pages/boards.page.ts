@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Page, type Locator } from '@playwright/test';
 import { env }              from '../../../../config/environment';
 import { TIMEOUTS }         from '../../../core/constants/timeouts';
 import { boardsLocators }   from '../locators/boards.locators';
@@ -303,5 +303,45 @@ export class BoardsPage {
     await this.gotoFeatureBoard();
     await this.loc.openColumnAddBtn.click();
     await this.loc.addFeatureModalTitle.waitFor({ state: 'visible', timeout: TIMEOUTS.element });
+  }
+
+  // Creates a ticket on the Open column and returns a locator for its card.
+  // The QA `POST /tickets/create_ticket` endpoint intermittently responds with a 500
+  // (backend flakiness, not a UI bug) and silently drops the ticket — retry the whole
+  // create flow a few times before giving up, rather than failing on one transient error.
+  // NOTE: uses expect(...).toBeVisible() (not locator.isVisible()) because isVisible()'s
+  // `timeout` option is a no-op — it checks the DOM once and returns immediately, so it
+  // can't tell "not created" apart from "created but not rendered yet".
+  async addTicketAndGetCard(title: string, maxAttempts = 3): Promise<Locator> {
+    const card = this.loc.ticketCards.filter({ hasText: title }).first();
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      await this.openAddTicketOnOpenColumn();
+      await this.loc.addTicketTitleInput.fill(title);
+      await this.loc.addTicketSubmitBtn.click();
+      try {
+        await expect(card).toBeVisible({ timeout: 8_000 });
+        return card;
+      } catch {
+        // Submit likely failed server-side (500) — close any lingering modal and retry.
+        await this.page.keyboard.press('Escape').catch(() => {});
+        await this.page.waitForTimeout(500);
+      }
+    }
+    throw new Error(
+      `Ticket "${title}" did not appear on the board after ${maxAttempts} create attempts ` +
+      `(QA create_ticket endpoint may be failing).`,
+    );
+  }
+
+  // Deletes the ticket currently open in the detail panel via the kebab ("more options")
+  // menu → "Delete Ticket" → confirm. The QA `POST /tickets/update_ticket` endpoint used
+  // for delete reliably responds with a 500 yet the deletion is still applied server-side —
+  // the board list is not optimistically updated, so callers must reload to observe removal.
+  async deleteCurrentTicketViaDetailPanel(): Promise<void> {
+    await this.loc.detailMoreOptionsBtn.click();
+    await this.loc.deleteTicketMenuItem.waitFor({ state: 'visible', timeout: TIMEOUTS.element });
+    await this.loc.deleteTicketMenuItem.click();
+    await this.loc.deleteConfirmBtn.waitFor({ state: 'visible', timeout: TIMEOUTS.element });
+    await this.loc.deleteConfirmBtn.click();
   }
 }

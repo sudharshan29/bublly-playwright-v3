@@ -51,8 +51,13 @@ test.describe('Widget — Close and reopen — TC_WGT_CLOSE_001-003 @smoke', () 
     await launcherBtn.click();
     await widgetPage.page.waitForTimeout(1_000);
 
-    // Step 4: verify widget reopened (greeting or chat input is visible again)
+    // Step 4: verify widget reopened. Note: reopening from the launcher restores the widget
+    // directly to the category menu (Ask a question / Request a Feature / Report an Issue),
+    // skipping the initial "Start Chat" CTA card seen on a cold page load — this was verified
+    // live via screenshot. So "reopened" must also accept the category menu as a valid signal,
+    // not just startChatBtn/chatInput.
     const reopened = await widgetPage.loc.startChatBtn.waitFor({ state: 'visible', timeout: 8_000 }).then(() => true).catch(() => false)
+      || await widgetPage.loc.askQuestionOption.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true).catch(() => false)
       || await widgetPage.loc.chatInput.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true).catch(() => false);
     if (!reopened) {
       test.skip(true, 'Widget did not reopen after launcher click — launcher behavior may differ in QA env');

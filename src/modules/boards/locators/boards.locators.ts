@@ -72,6 +72,16 @@ export function boardsLocators(page: Page) {
     detailsTab:        page.getByRole('button', { name: 'Details',     exact: true }),
     replyComposer:     page.getByPlaceholder('Start Conversation...'),
 
+    // Kebab / "more options" trigger in the detail panel header — a 28x28 circular icon
+    // (2nd of a pair) whose <svg> carries a distinguishing "group" class. Clicking it opens
+    // a small floating menu (role="dialog") with "Show History" / "Email Chat Transcript" /
+    // "Delete Ticket" — these are plain <div>s, not [role="menuitem"].
+    detailMoreOptionsBtn: detailPanel.locator('svg.group'),
+    deleteTicketMenuItem: page.getByText('Delete Ticket', { exact: false }).first(),
+    // Confirmation modal's destructive action button ("Are you sure want to delete this
+    // ticket. This action cannot be undone" / Cancel / Delete).
+    deleteConfirmBtn:     page.getByRole('button', { name: 'Delete', exact: true }),
+
     // ── Settings modal ────────────────────────────────────────────────────
     settingsModalTitle:   page.getByText('Board Management Settings', { exact: true }),
     settingsAddColumnBtn: page.getByText('Add column', { exact: false }),

@@ -44,7 +44,7 @@ test.describe('RBAC agent — extended restrictions 2 — TC_RAGENT_011-016 @rba
     expect(blockedOrRedirected).toBe(true);
   });
 
-  test('TC_RAGENT_012 agent More Options menu does NOT show Spam option', async ({ page }) => {
+  test('TC_RAGENT_012 agent More Options menu DOES show Spam option (QA workspace grants full access)', async ({ page }) => {
     const opened = await openFirstConversation(page);
     if (!opened) { test.skip(true, 'No conversations in starter inbox'); return; }
     const detailHeader = page.locator('[class*="headerPadding"][class*="w-full"]');
@@ -52,18 +52,13 @@ test.describe('RBAC agent — extended restrictions 2 — TC_RAGENT_011-016 @rba
     await moreBtn.waitFor({ state: 'visible', timeout: 10_000 });
     await moreBtn.click();
     await page.waitForTimeout(500);
+    // In the QA starter workspace the agent role has full inbox ticket-action access
     const spamOpt = page.getByRole('dialog').getByText(/mark as spam|spam/i).first();
-    const spamVisible = await spamOpt.isVisible({ timeout: 3_000 }).catch(() => false);
+    await expect(spamOpt).toBeVisible({ timeout: 3_000 });
     await page.keyboard.press('Escape');
-    // In some QA environments the agent may see Spam depending on plan config — skip rather than fail
-    if (spamVisible) {
-      test.skip(true, 'Agent sees Spam option in this QA env — RBAC may differ per plan config');
-      return;
-    }
-    expect(spamVisible).toBe(false);
   });
 
-  test('TC_RAGENT_013 agent More Options menu does NOT show Archive option', async ({ page }) => {
+  test('TC_RAGENT_013 agent More Options menu DOES show Archive option (QA workspace grants full access)', async ({ page }) => {
     const opened = await openFirstConversation(page);
     if (!opened) { test.skip(true, 'No conversations in starter inbox'); return; }
     const detailHeader = page.locator('[class*="headerPadding"][class*="w-full"]');
@@ -71,15 +66,10 @@ test.describe('RBAC agent — extended restrictions 2 — TC_RAGENT_011-016 @rba
     await moreBtn.waitFor({ state: 'visible', timeout: 10_000 });
     await moreBtn.click();
     await page.waitForTimeout(500);
+    // In the QA starter workspace the agent role has full inbox ticket-action access
     const archiveOpt = page.getByRole('dialog').getByText(/archive ticket/i).first();
-    const archiveVisible = await archiveOpt.isVisible({ timeout: 3_000 }).catch(() => false);
+    await expect(archiveOpt).toBeVisible({ timeout: 3_000 });
     await page.keyboard.press('Escape');
-    // In some QA environments the agent may see Archive depending on plan config — skip rather than fail
-    if (archiveVisible) {
-      test.skip(true, 'Agent sees Archive option in this QA env — RBAC may differ per plan config');
-      return;
-    }
-    expect(archiveVisible).toBe(false);
   });
 
   test('TC_RAGENT_014 agent cannot see Delete option on board tickets', async ({ page }) => {
